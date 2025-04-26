@@ -1,6 +1,7 @@
-name: Run PHPUnit Tests with Coverage in Console
+name: Run PHPUnit Tests
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -24,4 +25,4 @@ jobs:
         run: composer install
 
       - name: Run PHPUnit and show coverage
-        run: vendor/bin/phpunit --coverage-text --colors=always
+        run: vendor/bin/phpunit tests --coverage-text --colors=always
