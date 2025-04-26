@@ -1,0 +1,1 @@
+[![Build Status](https://github.com/huhom/CQL-Core/actions/workflows/phpunit.yml/badge.svg)](https://github.com/huhom/CQL-Core/actions/workflows/phpunit.yml)
