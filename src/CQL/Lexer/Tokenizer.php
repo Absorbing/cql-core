@@ -18,7 +18,7 @@ class Tokenizer
     /**
      * Tokenize the input string into an array of tokens.
      *
-     * @return array<array{type: string, value: mixed, pos: int}>
+     * @return array<Token> An array of Token objects.
      */
     public function tokenize(): array
     {
