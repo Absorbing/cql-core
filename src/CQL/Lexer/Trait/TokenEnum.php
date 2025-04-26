@@ -1,10 +1,10 @@
 <?php
 
-namespace CQL\Lexer\Traits;
+namespace CQL\Lexer\Trait;
 
 use ReflectionClass;
 
-trait TokenEnumTrait
+trait TokenEnum
 {
     /**
      * Get all the backing values of the enum cases.

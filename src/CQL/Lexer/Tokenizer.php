@@ -23,22 +23,23 @@ class Tokenizer
     public function tokenize(): array
     {
         $patterns = TokenPatternRegistry::generatePatterns();
-        $regex = '/' . implode('|', $patterns) . '/i';
+        $regex = '~' . implode('|', $patterns) . '~i';
 
         preg_match_all($regex, $this->input, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
 
         foreach ($matches as $match) {
-            if (!is_array($match) || isset($match['WHITESPACE'])) {
-                continue;
-            }
-
             foreach ($match as $name => $group) {
                 if (is_string($name) && is_array($group) && $group[1] !== -1) {
+                    if ($name === 'WHITESPACE') {
+                        continue 2; // Skip whitespace
+                    }
+
                     $value = $group[0];
                     $pos = $group[1];
+
                     $this->tokens[] = new Token($name, $value, $pos);
 
-                    break;
+                    break; // First match wins
                 }
             }
         }

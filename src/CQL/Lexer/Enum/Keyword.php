@@ -1,17 +1,17 @@
 <?php
 
-namespace CQL\Lexer\Enums;
+namespace CQL\Lexer\Enum;
 
-use CQL\Lexer\Traits\TokenEnumTrait;
+use CQL\Lexer\Trait\TokenEnum;
 
 /**
  * Enum class for CQL keywords.
  *
- * @package CQL\Lexer\Enums
+ * @package CQL\Lexer\Enum
  */
 enum Keyword: string
 {
-    use TokenEnumTrait;
+    use TokenEnum;
 
     case SELECT = 'SELECT';
     case FROM = 'FROM';

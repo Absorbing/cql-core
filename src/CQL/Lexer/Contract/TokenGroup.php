@@ -1,6 +1,6 @@
 <?php
 
-namespace CQL\Contracts;
+namespace CQL\Lexer\Contract;
 
 interface TokenGroup
 {

@@ -3,7 +3,7 @@
 namespace Lexer\Enums;
 
 use PHPUnit\Framework\TestCase;
-use CQL\Lexer\Enums\Keyword;
+use CQL\Lexer\Enum\Keyword;
 
 class KeywordTest extends TestCase
 {

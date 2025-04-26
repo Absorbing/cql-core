@@ -4,8 +4,8 @@ namespace CQL\Lexer\Support;
 
 class TokenPatternRegistry
 {
-    protected const ENUMS_NAMESPACE = "CQL\Lexer\Enums\\";
-    protected const ENUMS_PATH = __DIR__ . '/../Enums/';
+    protected const ENUMS_NAMESPACE = "CQL\Lexer\Enum\\";
+    protected const ENUMS_PATH = __DIR__ . '/../Enum/';
 
     /**
      * The patterns for the token groups
@@ -22,14 +22,31 @@ class TokenPatternRegistry
             $patterns[$name] = '(?<' . $name . '>' . $tokenGroup::pattern() . ')';
         }
 
-        $patterns['STRING'] = '(?<STRING>\'(.*?)\')';
-        $patterns['NUMBER'] = '(?<NUMBER>\b\d+(\.\d+)?\b)';
-        $patterns['IDENTIFIER'] = '(?<IDENTIFIER>[a-zA-Z_][a-zA-Z0-9_]*)';
-        $patterns['COMMA'] = '(?<COMMA>,)';
-        $patterns['SEMICOLON'] = '(?<SEMICOLON>;)';
-        $patterns['LPAREN'] = '(?<LPAREN>\()';
-        $patterns['RPAREN'] = '(?<RPAREN>\))';
-        $patterns['WHITESPACE'] = '(?<WHITESPACE>\s+)';
+        $patternGroups = [
+            'literals' => [
+                'STRING' => "'(.*?)'",
+                'NUMBER' => '\b\d+(\.\d+)?\b',
+            ],
+            'identifiers' => [
+                'IDENTIFIER' => '[a-zA-Z_][a-zA-Z0-9_]*',
+            ],
+            'punctuation' => [
+                'COMMA' => ',',
+                'SEMICOLON' => ';',
+                'LPAREN' => '\(',
+                'RPAREN' => '\)',
+                'DOT' => '\.',
+            ],
+            'whitespace' => [
+                'WHITESPACE' => '\s+',
+            ],
+        ];
+
+        foreach ($patternGroups as $group) {
+            foreach ($group as $name => $regex) {
+                $patterns[$name] = '(?<' . $name . '>' . $regex . ')';
+            }
+        }
 
         return $patterns;
     }
@@ -37,7 +54,7 @@ class TokenPatternRegistry
     /**
      * Discovers all classes in the Enums namespace
      *
-     * @return array
+     * @return array<class-string>
      */
     protected static function discoverTokenGroups(): array
     {
