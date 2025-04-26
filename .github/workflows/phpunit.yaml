@@ -23,5 +23,5 @@ jobs:
       - name: Install dependencies
         run: composer install
 
-      - name: Run PHPUnit
+      - name: Run PHPUnit tests with coverage
         run: vendor/bin/phpunit --coverage-text
