@@ -1,0 +1,19 @@
+{
+  "name": "absorbing/cql-core",
+  "version": "0.0.1",
+  "description": "Core library for the C-QL CSV Query Language",
+  "type": "library",
+  "autoload": {
+    "psr-4": {
+      "CQL\\": "src/CQL/"
+    }
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^12.1"
+  },
+  "scripts": {
+    "test": "phpunit"
+  },
+  "minimum-stability": "stable",
+  "license": "MIT"
+}
