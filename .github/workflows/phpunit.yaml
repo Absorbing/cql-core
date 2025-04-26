@@ -1,9 +1,9 @@
-name: Run PHPUnit tests
+name: Run PHPUnit Tests
 
 on:
   push:
     branches:
-      - master
+      - main
       - develop
   pull_request:
 
@@ -23,5 +23,5 @@ jobs:
       - name: Install dependencies
         run: composer install
 
-      - name: Run tests with coverage
+      - name: Run PHPUnit
         run: vendor/bin/phpunit --coverage-text
