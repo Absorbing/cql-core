@@ -1,1 +1,1 @@
-[![Build Status](https://github.com/huhom/CQL-Core/actions/workflows/phpunit.yml/badge.svg)](https://github.com/huhom/CQL-Core/actions/workflows/phpunit.yml)
+[![Build Status](https://github.com/Absorbing/cql-core/actions/workflows/phpunit.yaml/badge.svg)](https://github.com/Absorbing/cql-core/actions/workflows/phpunit.yaml)

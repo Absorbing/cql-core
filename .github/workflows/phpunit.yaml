@@ -1,4 +1,4 @@
-name: Run PHPUnit Tests
+name: Build Status
 
 on:
   workflow_dispatch:
