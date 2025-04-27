@@ -23,19 +23,28 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress
 
-      - name: Run PHPDoc Checker
+      - name: Run PHPDoc Checker and output coverage
         run: |
-          vendor/bin/phpdoc-checker check src/ --json=phpdoc-report.json || true
+          output=$(vendor/bin/phpdoc-checker check src/ --json=- || true)
+          echo "PHPDoc Checker Output:"
+          echo "$output"
+          
+          total=$(echo "$output" | jq '.counts.total // 0')
+          missing=$(echo "$output" | jq '.counts.missing // 0')
 
-      - name: Display PHPDoc Coverage
+          if [ "$total" -eq 0 ]; then
+            echo "No PHP files or PHPDoc found."
+          else
+            coverage=$(jq -n "($total - $missing) / $total * 100" | xargs printf "%.2f")
+            echo "PHPDoc coverage: $coverage%"
+          fi
+
+      - name: Save PHPDoc Checker Report
         run: |
-          total=$(jq '.counts.total' phpdoc-report.json)
-          missing=$(jq '.counts.missing' phpdoc-report.json)
-          coverage=$(jq -n "($total - $missing) / $total * 100" | xargs printf "%.2f")
-          echo "PHPDoc coverage: $coverage%"
+          vendor/bin/phpdoc-checker check src/ > phpdoc-report.txt || true
 
-      - name: Upload PHPDoc report artifact
+      - name: Upload PHPDoc Report
         uses: actions/upload-artifact@v4
         with:
           name: phpdoc-report
-          path: phpdoc-report.json
+          path: phpdoc-report.txt
