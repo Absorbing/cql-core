@@ -1,0 +1,27 @@
+name: Line Count
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  count-lines:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        
+      - name: Count Lines
+        run: |
+          total_lines=$(find . -type f -name '*.js' -o -name '*.py' -o -name '*.php' -o -name '*.ts' -o -name '*.lua' -o -name '*.cpp' -o -name '*.h' -exec cat {} + | wc -l)
+          echo "Total lines of code: $total_lines"
+          
+          # Optional: Save as artifact
+          echo "$total_lines" > line_count.txt
+
+      - name: Upload Line Count Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: line-count
+          path: line_count.txt
