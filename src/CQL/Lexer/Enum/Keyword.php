@@ -20,8 +20,14 @@ enum Keyword: string
     case OR = 'OR';
     case NOT = 'NOT';
     case DEFINE = 'DEFINE';
+    case AS = 'AS';
+    case COLUMNS = 'COLUMNS';
+    case HEADERS = 'HEADERS';
+    case WITH = 'WITH';
+    case WITHOUT = 'WITHOUT';
     case ASC = 'ASC';
     case DESC = 'DESC';
+    case DISTINCT = 'DISTINCT';
     case LIMIT = 'LIMIT';
     case OFFSET = 'OFFSET';
     case JOIN = 'JOIN';
