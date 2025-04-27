@@ -13,9 +13,9 @@ jobs:
         uses: actions/checkout@v4
         
       - name: Count Lines
-        run: |
-          total_lines=$(find . -type f -name '*.js' -o -name '*.py' -o -name '*.php' -o -name '*.ts' -o -name '*.lua' -o -name '*.cpp' -o -name '*.h' -exec cat {} + | wc -l)
-          echo "Total lines of code: $total_lines"
+  run: |
+    total_lines=$(find . -type f -name '*.js' -o -name '*.py' -o -name '*.php' -o -name '*.ts' -o -name '*.lua' -o -name '*.cpp' -o -name '*.h' -exec cat {} + | wc -l)
+    echo "Total lines of code: $total_lines"
           
           # Optional: Save as artifact
           echo "$total_lines" > line_count.txt
