@@ -1,0 +1,41 @@
+name: PHPDoc Coverage Check
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  phpdoc-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress
+
+      - name: Run PHPDoc Checker
+        run: |
+          vendor/bin/phpdoc-checker check src/ --json=phpdoc-report.json || true
+
+      - name: Display PHPDoc Coverage
+        run: |
+          total=$(jq '.counts.total' phpdoc-report.json)
+          missing=$(jq '.counts.missing' phpdoc-report.json)
+          coverage=$(jq -n "($total - $missing) / $total * 100" | xargs printf "%.2f")
+          echo "PHPDoc coverage: $coverage%"
+
+      - name: Upload PHPDoc report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: phpdoc-report
+          path: phpdoc-report.json

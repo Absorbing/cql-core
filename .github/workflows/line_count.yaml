@@ -17,3 +17,9 @@ jobs:
 
       - name: Count Lines with cloc
         run: cloc .
+
+      - name: Upload cloc report
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloc-report
+          path: cloc-report.txt

@@ -4,6 +4,8 @@ require_once __DIR__ . '/../vendor/autoload.php';
 
 use CQL\Lexer\Tokenizer;
 
+// Output the tokens of a CQL query
+
 if ($argc < 2) {
     echo "Usage: php bin/tokenize.php \"SELECT * FROM users WHERE age >= 18;\"\n";
     exit(1);
