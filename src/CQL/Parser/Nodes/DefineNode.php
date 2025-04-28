@@ -1,6 +1,6 @@
 <?php
 
-namespace CQL\Parser\Node;
+namespace CQL\Parser\Nodes;
 
 class DefineNode
 {
@@ -15,12 +15,12 @@ class DefineNode
     public string $alias;
 
     /**
-     * @var array
+     * @var array<string>
      */
     public array $columns;
 
     /**
-     * @var string
+     * @var bool
      */
     public bool $hasHeaders = false;
 
@@ -29,7 +29,8 @@ class DefineNode
      *
      * @param string $path
      * @param string $alias
-     * @param array $columns
+     * @param array<string> $columns
+     * @param bool $hasHeaders
      */
     public function __construct(string $path, string $alias, array $columns, bool $hasHeaders = false)
     {

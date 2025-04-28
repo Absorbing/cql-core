@@ -1,6 +1,6 @@
 <?php
 
-namespace CQL\Parser\Node;
+namespace CQL\Parser\Nodes;
 
 class FromNode
 {

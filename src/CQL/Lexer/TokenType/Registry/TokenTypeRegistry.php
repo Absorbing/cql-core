@@ -1,12 +1,13 @@
 <?php
 
-namespace CQL\Lexer\Support;
+namespace CQL\Lexer\TokenType\Registry;
 
-class TokenPatternRegistry
+use CQL\Lexer\TokenType\Traits\TokenEnum;
+use CQL\Providers\TokenTypeProvider;
+use CQL\Exceptions\LexerException;
+
+class TokenTypeRegistry
 {
-    protected const ENUMS_NAMESPACE = "CQL\Lexer\TokenType\\";
-    protected const ENUMS_PATH = __DIR__ . '/../TokenType/';
-
     /**
      * The patterns for the token groups
      *
@@ -16,8 +17,13 @@ class TokenPatternRegistry
     {
         $patterns = [];
 
-        // Dynamic Enums
-        foreach (self::discoverTokenGroups() as $tokenGroup) {
+        foreach (TokenTypeProvider::provide() as $tokenGroup) {
+            if (!in_array(TokenEnum::class, class_uses($tokenGroup))) {
+                throw new LexerException(
+                    sprintf('Token group %s must use TokenEnum trait', $tokenGroup)
+                );
+            }
+
             $name = $tokenGroup::groupName();
             $patterns[$name] = '(?<' . $name . '>' . $tokenGroup::pattern() . ')';
         }
@@ -49,25 +55,5 @@ class TokenPatternRegistry
         }
 
         return $patterns;
-    }
-
-    /**
-     * Discovers all classes in the Enums namespace
-     *
-     * @return array<class-string>
-     */
-    protected static function discoverTokenGroups(): array
-    {
-        $tokenGroups = [];
-        $files = glob(self::ENUMS_PATH . '*.php');
-
-        foreach ($files as $file) {
-            $className = self::ENUMS_NAMESPACE . basename($file, '.php');
-            if (class_exists($className)) {
-                $tokenGroups[] = $className;
-            }
-        }
-
-        return $tokenGroups;
     }
 }

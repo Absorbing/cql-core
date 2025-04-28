@@ -1,6 +1,6 @@
 <?php
 
-namespace CQL\Lexer\Trait;
+namespace CQL\Lexer\TokenType\Traits;
 
 use ReflectionClass;
 
@@ -13,10 +13,6 @@ trait TokenEnum
      */
     public static function values(): array
     {
-        if (!method_exists(static::class, 'cases')) {
-            throw new \LogicException(static::class . ' must be an enum implementing cases().');
-        }
-
         return array_column(static::cases(), 'value');
     }
 
@@ -37,21 +33,22 @@ trait TokenEnum
      */
     public static function pattern(): string
     {
-        return '\b(' . implode('|', array_map('preg_quote', self::values())) . ')\b';
+        return '\b(' . implode('|',
+                array_map(
+                    static fn($value): string => preg_quote((string)$value, '/'),
+                    self::values()
+                )
+            ) . ')\b';
     }
 
     /**
      * Case-insensitive version of tryFrom()
      *
      * @param string $value
-     * @return mixed
+     * @return ?self
      */
     public static function tryFromInsensitive(string $value): ?self
     {
-        if (!method_exists(static::class, 'tryFrom')) {
-            throw new \LogicException(static::class . ' must be an enum implementing tryFrom().');
-        }
-
         return self::tryFrom(strtoupper($value));
     }
 }

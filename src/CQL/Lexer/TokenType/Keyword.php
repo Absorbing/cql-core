@@ -2,7 +2,7 @@
 
 namespace CQL\Lexer\TokenType;
 
-use CQL\Lexer\Trait\TokenEnum;
+use CQL\Lexer\TokenType\Traits\TokenEnum;
 
 /**
  * Enum class for CQL keywords.

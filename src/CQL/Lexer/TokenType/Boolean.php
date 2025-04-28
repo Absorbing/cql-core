@@ -2,7 +2,7 @@
 
 namespace CQL\Lexer\TokenType;
 
-use CQL\Lexer\Trait\TokenEnum;
+use CQL\Lexer\TokenType\Traits\TokenEnum;
 
 /**
  * Enum class for CQL comparison operators.
@@ -15,10 +15,4 @@ enum Boolean: string
 
     case TRUE = 'TRUE';
     case FALSE = 'FALSE';
-
-    /**
-     * Get the group name.
-     *
-     * @return string
-     */
 }

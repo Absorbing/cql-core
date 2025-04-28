@@ -2,12 +2,12 @@
 
 namespace CQL\Support\Debug;
 
-use CQL\Parser\Node\QueryNode;
-use CQL\Parser\Node\DefineNode;
-use CQL\Parser\Node\SelectNode;
-use CQL\Parser\Node\FromNode;
-use CQL\Parser\Node\WhereNode;
-use CQL\Parser\Node\ConditionNode;
+use CQL\Parser\Nodes\QueryNode;
+use CQL\Parser\Nodes\DefineNode;
+use CQL\Parser\Nodes\SelectNode;
+use CQL\Parser\Nodes\FromNode;
+use CQL\Parser\Nodes\WhereNode;
+use CQL\Parser\Nodes\ConditionNode;
 
 class PrettyPrinter
 {

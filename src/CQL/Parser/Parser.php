@@ -3,12 +3,14 @@
 namespace CQL\Parser;
 
 use CQL\Lexer\Token;
-use CQL\Parser\Node\ConditionNode;
-use CQL\Parser\Node\DefineNode;
-use CQL\Parser\Node\FromNode;
-use CQL\Parser\Node\QueryNode;
-use CQL\Parser\Node\SelectNode;
-use CQL\Parser\Node\WhereNode;
+use CQL\Parser\Nodes\ConditionNode;
+use CQL\Parser\Nodes\DefineNode;
+use CQL\Parser\Nodes\FromNode;
+use CQL\Parser\Nodes\QueryNode;
+use CQL\Parser\Nodes\SelectNode;
+use CQL\Parser\Nodes\WhereNode;
+use CQL\Exceptions\ParserException;
+use CQL\Exceptions\SyntaxException;
 
 class Parser
 {
@@ -36,7 +38,7 @@ class Parser
     public function parse(): QueryNode
     {
         if (!$this->match('KEYWORD', 'DEFINE')) {
-            throw new \RuntimeException(
+            throw new SyntaxException(
                 "Expected query to start with 'DEFINE' keyword, found '{$this->tokens[$this->position]->type}({$this->tokens[$this->position]->value})' at position {$this->position}"
             );
         }
@@ -60,7 +62,10 @@ class Parser
             $where = $this->parseWhere();
         }
 
-        $this->expect('SEMICOLON'); // Optional semicolon at the end of the query
+        if ($this->match('SEMICOLON')) {
+            $this->advance();
+        }
+
         return new QueryNode($define, $select, $from, $where);
     }
 
@@ -79,7 +84,13 @@ class Parser
             $token = $this->expect('IDENTIFIER');
 
             $columns[] = $token->value;
-        } while ($this->match('COMMA') && $this->advance());
+
+            if ($this->match('COMMA')) {
+                $this->advance();
+            } else {
+                break;
+            }
+        } while (true);
 
         return new SelectNode($columns);
     }
@@ -132,9 +143,14 @@ class Parser
             $this->advance();
             $aliasToken = $this->tokens[$this->position] ?? null;
 
+            if (!isset($this->tokens[$this->position])) {
+                throw new ParserException("Unexpected end of tokens at position {$this->position}");
+            }
+
             if (!$aliasToken || ($aliasToken->type !== 'IDENTIFIER' && $aliasToken->type !== 'STRING' && $aliasToken->type !== 'KEYWORD')) {
-                throw new \RuntimeException(
-                    "Expected alias name after AS, got {$aliasToken->type} at position {$this->position}"
+                $type = $aliasToken->type ?? 'null';
+                throw new SyntaxException(
+                    "Expected alias name after AS, got {$type} at position {$this->position}"
                 );
             }
 
@@ -145,7 +161,7 @@ class Parser
             }
 
             if (!preg_match('/^[a-zA-Z0-9_]+$/', $aliasValue)) {
-                throw new \RuntimeException(
+                throw new SyntaxException(
                     "Invalid alias name '{$aliasValue}' at position {$this->position}"
                 );
             }
@@ -168,16 +184,22 @@ class Parser
 
             $this->expect('LPAREN');
 
-            do {
+            while ($this->position < count($this->tokens)) {
                 $token = $this->tokens[$this->position];
 
                 if ($token->type === 'IDENTIFIER' || $token->type === 'STRING') {
                     $columns[] = trim($token->value, "'");
                     $this->advance();
                 } else {
-                    throw new \RuntimeException("Expected column name, got {$token->type} at position {$this->position}");
+                    throw new SyntaxException("Expected column name, got {$token->type} at position {$this->position}");
                 }
-            } while ($this->match('COMMA') && $this->advance());
+
+                if ($this->match('COMMA')) {
+                    $this->advance();
+                } else {
+                    break;
+                }
+            }
 
             $this->expect('RPAREN');
         }
@@ -225,7 +247,7 @@ class Parser
         if (!$this->match($type, $value)) {
             $expected = $value ? "$type('$value')" : $type;
             $actual = $this->tokens[$this->position] ?? 'EOF';
-            throw new \RuntimeException(
+            throw new ParserException(
                 "Expected token '$expected', Actual: '$actual' at position {$this->position}"
             );
         }

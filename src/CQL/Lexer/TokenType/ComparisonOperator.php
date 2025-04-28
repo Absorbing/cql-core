@@ -2,7 +2,7 @@
 
 namespace CQL\Lexer\TokenType;
 
-use CQL\Lexer\Trait\TokenEnum;
+use CQL\Lexer\TokenType\Traits\TokenEnum;
 
 /**
  * Enum class for CQL comparison operators.
@@ -22,9 +22,7 @@ enum ComparisonOperator: string
     case LESS_THAN = '<';
 
     /**
-     * Get the group name.
-     *
-     * @return string
+     * {@inheritDoc}
      */
     public static function groupName(): string
     {
@@ -32,12 +30,10 @@ enum ComparisonOperator: string
     }
 
     /**
-     * Get the regex pattern for this token group.
-     *
-     * @return string
+     * {@inheritDoc}
      */
     public static function pattern(): string
     {
-        return '(' . implode('|', array_map('preg_quote', self::values())) . ')';
+        return '(' . implode('|', array_map(fn($value) => preg_quote((string)$value), self::values())) . ')';
     }
 }

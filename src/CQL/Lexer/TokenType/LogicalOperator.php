@@ -2,7 +2,7 @@
 
 namespace CQL\Lexer\TokenType;
 
-use CQL\Lexer\Trait\TokenEnum;
+use CQL\Lexer\TokenType\Traits\TokenEnum;
 
 /**
  * Enum class for CQL comparison operators.
@@ -18,9 +18,7 @@ enum LogicalOperator: string
     case NOT = 'NOT';
 
     /**
-     * Get the group name.
-     *
-     * @return string
+     * {@inheritDoc}
      */
     public static function groupName(): string
     {

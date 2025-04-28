@@ -2,12 +2,20 @@
 
 namespace CQL\Lexer;
 
-use CQL\Lexer\Support\TokenPatternRegistry;
-use CQL\Lexer\Token;
+use CQL\Lexer\TokenType\Registry\TokenTypeRegistry;
 
 class Tokenizer
 {
+    /**
+     * The input string to be tokenized.
+     *
+     * @var string
+     */
     protected string $input;
+
+    /**
+     * @var array<Token>
+     */
     protected array $tokens = [];
 
     public function __construct(string $input)
@@ -22,14 +30,14 @@ class Tokenizer
      */
     public function tokenize(): array
     {
-        $patterns = TokenPatternRegistry::generatePatterns();
+        $patterns = TokenTypeRegistry::generatePatterns();
         $regex = '~' . implode('|', $patterns) . '~i';
 
         preg_match_all($regex, $this->input, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
 
         foreach ($matches as $match) {
             foreach ($match as $name => $group) {
-                if (is_string($name) && is_array($group) && $group[1] !== -1) {
+                if (is_string($name) && $group[1] !== -1) {
                     if ($name === 'WHITESPACE') {
                         continue 2; // Skip whitespace
                     }

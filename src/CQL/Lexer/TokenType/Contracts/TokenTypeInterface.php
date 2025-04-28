@@ -1,8 +1,8 @@
 <?php
 
-namespace CQL\Lexer\Contract;
+namespace CQL\Lexer\TokenType\Contracts;
 
-interface TokenGroup
+interface TokenTypeInterface
 {
     /**
      * Get the group name.
