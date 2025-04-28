@@ -1,6 +1,6 @@
 <?php
 
-namespace CQL\Lexer\Enum;
+namespace CQL\Lexer\TokenType;
 
 use CQL\Lexer\Trait\TokenEnum;
 

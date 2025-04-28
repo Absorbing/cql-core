@@ -1,24 +1,25 @@
 <?php
 
-namespace CQL\Lexer\Enum;
+namespace CQL\Lexer\TokenType;
 
 use CQL\Lexer\Trait\TokenEnum;
 
 /**
- * Enum class for mathematical operators.
+ * Enum class for CQL comparison operators.
  *
- * @package CQL\Lexer\Enum
+ * @package CQL\Lexer\Enums
  */
-enum MathOperator: string
+enum ComparisonOperator: string
 {
     use TokenEnum;
 
-    case ADD = '+';
-    case SUBTRACT = '-';
-    case MULTIPLY = '*';
-    case DIVIDE = '/';
-    case MODULUS = '%';
-    case POWER = '^';
+    case EQUAL = '=';
+    case NOT_EQUAL_EXCLAMATION = '!=';
+    case NOT_EQUAL_ANGLE = '<>';
+    case GREATER_THAN_OR_EQUAL = '>=';
+    case GREATER_THAN = '>';
+    case LESS_THAN_OR_EQUAL = '<=';
+    case LESS_THAN = '<';
 
     /**
      * Get the group name.
@@ -27,7 +28,7 @@ enum MathOperator: string
      */
     public static function groupName(): string
     {
-        return 'MATH_OPERATOR';
+        return 'COMPARISON_OPERATOR';
     }
 
     /**

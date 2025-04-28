@@ -4,8 +4,8 @@ namespace CQL\Lexer\Support;
 
 class TokenPatternRegistry
 {
-    protected const ENUMS_NAMESPACE = "CQL\Lexer\Enum\\";
-    protected const ENUMS_PATH = __DIR__ . '/../Enum/';
+    protected const ENUMS_NAMESPACE = "CQL\Lexer\TokenType\\";
+    protected const ENUMS_PATH = __DIR__ . '/../TokenType/';
 
     /**
      * The patterns for the token groups
