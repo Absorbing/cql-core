@@ -147,8 +147,6 @@ class Parser
             $alias = preg_replace('/[^a-zA-Z0-9]/', '', pathinfo($path, PATHINFO_FILENAME));
         }
 
-        $this->advance();
-
         return new DefineNode(
             $path,
             $alias,
@@ -206,34 +204,39 @@ class Parser
         return false;
     }
 
-    public function parseColumns(): array
+    protected function parseColumns(): array
     {
-        if (!$this->match('KEYWORD', 'COLUMNS')) {
-            return [];
-        }
-
+        $this->expect('LPAREN'); // COLUMNS should start with a '('
         $this->advance();
-        $this->expect('LPAREN');
+
         $columns = [];
 
-        while ($this->position < count($this->tokens)) {
+        while (!$this->match('RPAREN')) {
+            if (!isset($this->tokens[$this->position])) {
+                throw new ParserException("Unexpected end of tokens while parsing columns");
+            }
+
             $token = $this->tokens[$this->position];
 
-            if (in_array($token->type, ['IDENTIFIER', 'STRING'])) {
-                throw new SyntaxException("Expected column name, got {$token->type} at position {$this->position}");
+            if (!in_array($token->type, ['IDENTIFIER', 'STRING'])) {
+                throw new ParserException(
+                    "Expected column name, got {$token->type} at position {$this->position}"
+                );
             }
 
             $columns[] = trim($token->value, "'");
             $this->advance();
 
-            if (!$this->match('COMMA')) {
+            if ($this->match('COMMA')) {
+                $this->advance();
+            } else {
                 break;
             }
-
-            $this->advance();
         }
 
         $this->expect('RPAREN');
+        $this->advance();
+
         return $columns;
     }
 
