@@ -2,8 +2,8 @@
 
 namespace CQL\Data;
 
-use CQL\Data\Enum\CSVHeaderMode;
 use CQL\Data\Contracts\DataSourceInterface;
+use CQL\Data\Enum\CSVHeaderMode;
 use CQL\Exceptions\DataSourceException;
 
 class CSVDataSource implements DataSourceInterface
