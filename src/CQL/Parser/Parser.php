@@ -147,6 +147,8 @@ class Parser
             $alias = preg_replace('/[^a-zA-Z0-9]/', '', pathinfo($path, PATHINFO_FILENAME));
         }
 
+        $this->advance();
+
         return new DefineNode(
             $path,
             $alias,
