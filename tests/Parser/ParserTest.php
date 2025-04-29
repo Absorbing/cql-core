@@ -2,6 +2,7 @@
 
 namespace Parser;
 
+use CQL\Data\Enum\CSVHeaderMode;
 use PHPUnit\Framework\TestCase;
 use CQL\Lexer\Tokenizer;
 use CQL\Parser\Parser;
@@ -30,7 +31,7 @@ class ParserTest extends TestCase
         $this->assertSame("'users.csv'", $ast->define->path);
         $this->assertSame('data', $ast->define->alias);
         $this->assertSame(['id', 'name', 'age'], $ast->define->columns);
-        $this->assertTrue($ast->define->hasHeaders);
+        $this->assertSame(CSVHeaderMode::WITH_HEADERS, $ast->define->hasHeaders);
 
         $this->assertInstanceOf(SelectNode::class, $ast->select);
         $this->assertSame(['id'], $ast->select->columns);
@@ -71,7 +72,7 @@ class ParserTest extends TestCase
 
         $ast = $parser->parse();
 
-        $this->assertFalse($ast->define->hasHeaders); // no headers!
+        $this->assertSame(CSVHeaderMode::WITHOUT_HEADERS, $ast->define->hasHeaders);
     }
 
 

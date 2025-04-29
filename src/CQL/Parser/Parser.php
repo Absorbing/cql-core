@@ -2,6 +2,7 @@
 
 namespace CQL\Parser;
 
+use CQL\Data\Enum\CSVHeaderMode;
 use CQL\Lexer\Token;
 use CQL\Parser\Nodes\ConditionNode;
 use CQL\Parser\Nodes\DefineNode;
@@ -138,10 +139,7 @@ class Parser
         $hasHeaders = $this->parseHeaders();
         $columns = $this->parseColumns();
 
-        if ($alias === null) {
-            $alias = preg_replace('/[^a-zA-Z0-9]/', '', pathinfo($path, PATHINFO_FILENAME));
-            $alias = preg_replace('/[^a-zA-Z0-9]/', '', pathinfo($path, PATHINFO_FILENAME));
-        }
+        $alias ??= preg_replace('/[^a-zA-Z0-9]/', '', pathinfo($path, PATHINFO_FILENAME));
 
         return new DefineNode(
             $path,
@@ -187,19 +185,19 @@ class Parser
         return $aliasValue;
     }
 
-    protected function parseHeaders(): bool
+    protected function parseHeaders(): CSVHeaderMode
     {
         if ($this->match('KEYWORD', 'WITH')) {
             $this->advance();
             $this->expect('KEYWORD', 'HEADERS');
-            return true;
+            return CSVHeaderMode::WITH_HEADERS;
         } elseif ($this->match('KEYWORD', 'WITHOUT')) {
             $this->advance();
             $this->expect('KEYWORD', 'HEADERS');
-            return false;
+            return CSVHeaderMode::WITHOUT_HEADERS;
         }
 
-        return false;
+        return CSVHeaderMode::WITHOUT_HEADERS;
     }
 
     protected function parseColumns()
@@ -213,7 +211,9 @@ class Parser
         $this->advance();
         $this->expect('LPAREN');
 
-        while ($this->position < count($this->tokens)) {
+        $count = count($this->tokens);
+
+        while ($this->position < $count) {
             $token = $this->tokens[$this->position];
 
             if (!in_array($token->type, ['IDENTIFIER', 'STRING'])) {

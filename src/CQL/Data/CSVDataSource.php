@@ -2,6 +2,7 @@
 
 namespace CQL\Data;
 
+use CQL\Data\Enum\CSVHeaderMode;
 use CQL\Data\Contracts\DataSourceInterface;
 use CQL\Exceptions\DataSourceException;
 
@@ -15,10 +16,13 @@ class CSVDataSource implements DataSourceInterface
      */
     protected array $rows = [];
 
-    protected bool $hasHeaders;
+    protected CSVHeaderMode $hasHeaders;
 
-    public function __construct(string $path, bool $hasHeaders = false, string $delimiter = ',')
-    {
+    public function __construct(
+        string $path,
+        CSVHeaderMode $hasHeaders = CSVHeaderMode::WITHOUT_HEADERS,
+        string $delimiter = ','
+    ) {
         $this->path = $path;
         $this->hasHeaders = $hasHeaders;
         $this->delimiter = $delimiter;
@@ -54,7 +58,7 @@ class CSVDataSource implements DataSourceInterface
 
         while (($row = fgetcsv($handle, 0, $this->delimiter)) !== false) {
             if (!$this->hasHeaders && $index === 0) {
-                $headers = array_map(fn($i) => "column_" . ($i + 1), array_keys($row));
+                $headers = array_map(fn($pos) => "column_" . ($pos + 1), array_keys($row));
             }
 
             if (count($headers) !== count($row)) {

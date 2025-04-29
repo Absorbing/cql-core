@@ -2,6 +2,8 @@
 
 namespace CQL\Parser\Nodes;
 
+use CQL\Data\Enum\CSVHeaderMode;
+
 class DefineNode
 {
     /**
@@ -22,7 +24,7 @@ class DefineNode
     /**
      * @var bool
      */
-    public bool $hasHeaders = false;
+    public CSVHeaderMode $hasHeaders = CSVHeaderMode::WITHOUT_HEADERS;
 
     /**
      * Create a new DefineNode instance.
@@ -30,10 +32,14 @@ class DefineNode
      * @param string $path
      * @param string $alias
      * @param array<string> $columns
-     * @param bool $hasHeaders
+     * @param CSVHeaderMode $hasHeaders
      */
-    public function __construct(string $path, string $alias, array $columns, bool $hasHeaders = false)
-    {
+    public function __construct(
+        string $path,
+        string $alias,
+        array $columns,
+        CSVHeaderMode $hasHeaders = CSVHeaderMode::WITHOUT_HEADERS
+    ) {
         $this->path = $path;
         $this->alias = $alias;
         $this->columns = $columns;

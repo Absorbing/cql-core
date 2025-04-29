@@ -4,6 +4,7 @@ namespace CQL\Engine\Operators\Registry;
 
 use CQL\Engine\Operators\Contracts\OperatorInterface;
 use CQL\Providers\OperatorProvider;
+use InvalidArgumentException;
 
 class OperatorRegistry
 {
@@ -29,12 +30,12 @@ class OperatorRegistry
      *
      * @param string $class
      * @return void
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
     public static function register(string $class): void
     {
         if (!is_subclass_of($class, OperatorInterface::class)) {
-            throw new \InvalidArgumentException("Class $class must implement OperatorInterface.");
+            throw new InvalidArgumentException("Class $class must implement OperatorInterface.");
         }
 
         foreach ($class::symbols() as $symbol) {

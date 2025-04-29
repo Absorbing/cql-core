@@ -18,6 +18,9 @@ use CQL\Engine\Operators\OrOperator;
 use CQL\Engine\Operators\PowerOperator;
 use CQL\Engine\Operators\SubtractOperator;
 
+/**
+ * @SuppressWarnings(PHPMD.CouplingBetweenObjects)
+ */
 class OperatorProvider
 {
     /**

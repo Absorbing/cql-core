@@ -2,6 +2,7 @@
 
 namespace CQL\Support\Debug;
 
+use CQL\Data\Enum\CSVHeaderMode;
 use CQL\Parser\Nodes\QueryNode;
 use CQL\Parser\Nodes\DefineNode;
 use CQL\Parser\Nodes\SelectNode;
@@ -51,7 +52,12 @@ class PrettyPrinter
     protected static function printDefine(DefineNode $defineNode): string
     {
         $columns = implode(', ', $defineNode->columns);
-        $hasHeaders = $defineNode->hasHeaders ? 'WITH HEADERS' : 'WITHOUT HEADERS';
+
+        $hasHeaders = 'WITHOUT HEADERS';
+
+        if ($defineNode->hasHeaders == CSVHeaderMode::WITH_HEADERS) {
+            $hasHeaders = 'WITH HEADERS';
+        }
 
         return "DEFINE: {$defineNode->path} AS {$defineNode->alias} {$hasHeaders} COLUMNS ({$columns})";
     }
