@@ -32,8 +32,13 @@ class Parser
      */
     public function __construct(array $tokens)
     {
+        if (empty($tokens)) {
+            throw new ParserException("The provided tokens must be an array.");
+        }
+
         $this->tokens = $tokens;
     }
+
 
     public function parse(): QueryNode
     {
@@ -85,11 +90,11 @@ class Parser
 
             $columns[] = $token->value;
 
-            if ($this->match('COMMA')) {
-                $this->advance();
-            } else {
+            if (!$this->match('COMMA')) {
                 break;
             }
+
+            $this->advance();
         } while (true);
 
         return new SelectNode($columns);
@@ -134,78 +139,11 @@ class Parser
         $pathToken = $this->expect('STRING');
         $path = $pathToken->value;
 
-        $alias = null;
-        $columns = [];
-        $hasHeaders = false;
-
-
-        if ($this->match('KEYWORD', 'AS')) {
-            $this->advance();
-            $aliasToken = $this->tokens[$this->position] ?? null;
-
-            if (!isset($this->tokens[$this->position])) {
-                throw new ParserException("Unexpected end of tokens at position {$this->position}");
-            }
-
-            if (!$aliasToken || ($aliasToken->type !== 'IDENTIFIER' && $aliasToken->type !== 'STRING' && $aliasToken->type !== 'KEYWORD')) {
-                $type = $aliasToken->type ?? 'null';
-                throw new SyntaxException(
-                    "Expected alias name after AS, got {$type} at position {$this->position}"
-                );
-            }
-
-            if ($aliasToken->type === 'STRING') {
-                $aliasValue = trim($aliasToken->value, "'");
-            } else {
-                $aliasValue = $aliasToken->value;
-            }
-
-            if (!preg_match('/^[a-zA-Z0-9_]+$/', $aliasValue)) {
-                throw new SyntaxException(
-                    "Invalid alias name '{$aliasValue}' at position {$this->position}"
-                );
-            }
-
-            $alias = $aliasValue;
-            $this->advance();
-        }
-
-        if ($this->match('KEYWORD', 'WITH')) {
-            $this->advance();
-            $this->expect('KEYWORD', 'HEADERS');
-            $hasHeaders = true;
-        } elseif ($this->match('KEYWORD', 'WITHOUT')) {
-            $this->advance();
-            $this->expect('KEYWORD', 'HEADERS');
-        }
-
-        if ($this->match('KEYWORD', 'COLUMNS')) {
-            $this->advance();
-
-            $this->expect('LPAREN');
-
-            while ($this->position < count($this->tokens)) {
-                $token = $this->tokens[$this->position];
-
-                if ($token->type === 'IDENTIFIER' || $token->type === 'STRING') {
-                    $columns[] = trim($token->value, "'");
-                    $this->advance();
-                } else {
-                    throw new SyntaxException("Expected column name, got {$token->type} at position {$this->position}");
-                }
-
-                if ($this->match('COMMA')) {
-                    $this->advance();
-                } else {
-                    break;
-                }
-            }
-
-            $this->expect('RPAREN');
-        }
+        $alias = $this->parseAlias();
+        $columns = $this->parseColumns();
+        $hasHeaders = $this->parseHeaders();
 
         if ($alias === null) {
-            // strip non-alphanumeric characters from the path
             $alias = preg_replace('/[^a-zA-Z0-9]/', '', pathinfo($path, PATHINFO_FILENAME));
         }
 
@@ -215,6 +153,86 @@ class Parser
             $columns,
             $hasHeaders
         );
+    }
+
+    public function parseAlias(): string|null
+    {
+        if (!$this->match('KEYWORD', 'AS')) {
+            return null;
+        }
+
+        $this->advance();
+        $aliasToken = $this->tokens[$this->position] ?? null;
+
+        if (!$aliasToken || ($aliasToken->type !== 'IDENTIFIER' && $aliasToken->type !== 'STRING' && $aliasToken->type !== 'KEYWORD')) {
+            $type = $aliasToken->type ?? 'null';
+            throw new SyntaxException(
+                "Expected alias name after AS, got {$type} at position {$this->position}"
+            );
+        }
+
+        $aliasValue = $aliasToken->value;
+
+        if ($aliasToken->type === 'STRING') {
+            $aliasValue = trim($aliasToken->value, "'");
+        }
+
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $aliasValue)) {
+            throw new SyntaxException(
+                "Invalid alias name '{$aliasValue}' at position {$this->position}"
+            );
+        }
+
+        $this->advance();
+        return $aliasValue;
+    }
+
+    public function parseHeaders(): bool
+    {
+        if ($this->match('KEYWORD', 'WITH')) {
+            $this->advance();
+            $this->expect('KEYWORD', 'HEADERS');
+            return true;
+        }
+
+        if ($this->match('KEYWORD', 'WITH')) {
+            $this->advance();
+            $this->expect('KEYWORD', 'HEADERS');
+            return false;
+        }
+
+        return false;
+    }
+
+    public function parseColumns(): array
+    {
+        if (!$this->match('KEYWORD', 'COLUMNS')) {
+            return [];
+        }
+
+        $this->advance();
+        $this->expect('LPAREN');
+        $columns = [];
+
+        while ($this->position < count($this->tokens)) {
+            $token = $this->tokens[$this->position];
+
+            if (in_array($token->type, ['IDENTIFIER', 'STRING'])) {
+                throw new SyntaxException("Expected column name, got {$token->type} at position {$this->position}");
+            }
+
+            $columns[] = trim($token->value, "'");
+            $this->advance();
+
+            if (!$this->match('COMMA')) {
+                break;
+            }
+
+            $this->advance();
+        }
+
+        $this->expect('RPAREN');
+        return $columns;
     }
 
     /**
@@ -228,7 +246,9 @@ class Parser
     {
         $token = $this->tokens[$this->position] ?? null;
 
-        if (!$token || $token->type !== $type || ($value !== null && strtoupper($token->value) !== strtoupper($value))) {
+        if (!$token || $token->type !== $type || ($value !== null && strtoupper($token->value) !== strtoupper(
+                    $value
+                ))) {
             return false;
         }
 
@@ -262,6 +282,15 @@ class Parser
      */
     protected function advance(): Token
     {
+        if (!isset($this->tokens[$this->position])) {
+            throw new ParserException("Unexpected end of tokens or invalid token array at position {$this->position}");
+        }
+
+        if (!isset($this->tokens[$this->position + 1]) && !$this->match('SEMICOLON')) {
+            throw new ParserException("Unexpected end of tokens at position {$this->position}");
+        }
+
         return $this->tokens[$this->position++];
     }
+
 }
