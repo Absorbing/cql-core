@@ -21,6 +21,11 @@ class Interpreter
      */
     protected Collection $collection;
 
+    /**
+     * Create a new Interpreter instance.
+     *
+     * @param QueryNode $query
+     */
     public function __construct(QueryNode $query)
     {
         $this->query = $query;
@@ -34,6 +39,11 @@ class Interpreter
         $this->collection = new Collection($source->getRows());
     }
 
+    /**
+     * Execute the query.
+     *
+     * @return Collection
+     */
     public function execute(): Collection
     {
         if ($this->query->where !== null) {
@@ -44,6 +54,11 @@ class Interpreter
         return $this->collection;
     }
 
+    /**
+     * Apply the WHERE clause.
+     *
+     * @return void
+     */
     protected function applyWhere(): void
     {
         $condition = $this->query->where->condition;
@@ -60,6 +75,11 @@ class Interpreter
         );
     }
 
+    /**
+     * Apply the SELECT clause
+     *
+     * @return void
+     */
     protected function applySelect(): void
     {
         $columns = $this->query->select->columns;
