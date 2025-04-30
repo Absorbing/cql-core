@@ -1,6 +1,7 @@
 name: Line Count on Master Push (with cloc)
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - master
@@ -17,9 +18,3 @@ jobs:
 
       - name: Count Lines with cloc
         run: cloc ./src
-
-      - name: Upload cloc report
-        uses: actions/upload-artifact@v4
-        with:
-          name: cloc-report
-          path: cloc-report.txt
