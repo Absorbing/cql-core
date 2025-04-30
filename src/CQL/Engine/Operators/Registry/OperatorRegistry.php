@@ -66,4 +66,19 @@ class OperatorRegistry
     {
         return self::$operators[$symbol] ?? null;
     }
+
+    /**
+     * Return the operator instance by its symbol.
+     *
+     * @param string $symbol
+     * @return OperatorInterface
+     */
+    public static function resolve(string $symbol): OperatorInterface
+    {
+        $class = self::getOperator($symbol);
+        if ($class === null) {
+            throw new InvalidArgumentException("Operator $symbol not found.");
+        }
+        return new $class();
+    }
 }

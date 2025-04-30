@@ -44,6 +44,9 @@ class CSVDataSource implements DataSourceInterface
         $this->hasHeaders = $hasHeaders;
         $this->delimiter = $delimiter;
 
+        // strip single and double quotes from path
+        $this->path = str_replace(['\'', '"'], '', $this->path);
+
         if (!file_exists($this->path)) {
             throw new DataSourceException("File not found: {$this->path}");
         }

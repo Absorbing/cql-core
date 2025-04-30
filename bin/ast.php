@@ -19,5 +19,6 @@ $tokenizer = new Tokenizer($query);
 $tokens = $tokenizer->tokenize();
 $parser = new Parser($tokens);
 $ast = $parser->parse();
+print_r($ast);
 
 echo PrettyPrinter::print($ast);
