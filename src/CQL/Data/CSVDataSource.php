@@ -8,7 +8,14 @@ use CQL\Exceptions\DataSourceException;
 
 class CSVDataSource implements DataSourceInterface
 {
+    /**
+     * @var string
+     */
     protected string $path;
+
+    /**
+     * @var string
+     */
     protected string $delimiter;
 
     /**
@@ -16,8 +23,18 @@ class CSVDataSource implements DataSourceInterface
      */
     protected array $rows = [];
 
+    /**
+     * @var CSVHeaderMode
+     */
     protected CSVHeaderMode $hasHeaders;
 
+    /**
+     * Create a new CSVDataSource instance.
+     *
+     * @param string $path
+     * @param CSVHeaderMode $hasHeaders
+     * @param string $delimiter
+     */
     public function __construct(
         string $path,
         CSVHeaderMode $hasHeaders = CSVHeaderMode::WITHOUT_HEADERS,
@@ -36,6 +53,11 @@ class CSVDataSource implements DataSourceInterface
         }
     }
 
+    /**
+     * Load the data source.
+     *
+     * @throws DataSourceException
+     */
     public function load(): void
     {
         $handle = fopen($this->path, 'r');
@@ -81,6 +103,8 @@ class CSVDataSource implements DataSourceInterface
     }
 
     /**
+     * Get all rows from the data source.
+     *
      * @return array<int, array<string, string>>
      */
     public function getRows(): array

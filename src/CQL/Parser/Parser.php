@@ -149,6 +149,11 @@ class Parser
         );
     }
 
+    /**
+     * Parse the alias.
+     *
+     * @return string|null
+     */
     protected function parseAlias(): string|null
     {
         if (!$this->match('KEYWORD', 'AS')) {
@@ -185,6 +190,11 @@ class Parser
         return $aliasValue;
     }
 
+    /**
+     * Parse the CSV header mode.
+     *
+     * @return CSVHeaderMode
+     */
     protected function parseHeaders(): CSVHeaderMode
     {
         if ($this->match('KEYWORD', 'WITH')) {
@@ -200,7 +210,12 @@ class Parser
         return CSVHeaderMode::WITHOUT_HEADERS;
     }
 
-    protected function parseColumns()
+    /**
+     * Parse the columns.
+     *
+     * @return array<string>
+     */
+    protected function parseColumns(): array
     {
         $columns = [];
 
