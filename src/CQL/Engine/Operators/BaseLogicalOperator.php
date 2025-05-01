@@ -4,14 +4,14 @@ namespace CQL\Engine\Operators;
 
 use CQL\Engine\Operators\Contracts\LogicalOperatorInterface;
 
-class NotOperator extends BaseLogicalOperator implements LogicalOperatorInterface
+class BaseLogicalOperator implements LogicalOperatorInterface
 {
     /**
      * {@inheritDoc}
      */
     public static function symbols(): array
     {
-        return ['NOT'];
+        return [];
     }
 
     /**
@@ -19,7 +19,7 @@ class NotOperator extends BaseLogicalOperator implements LogicalOperatorInterfac
      */
     public static function evaluate(mixed $left, mixed $right): bool
     {
-        return (!(bool)$left);
+        return false;
     }
 
     /**
@@ -27,6 +27,6 @@ class NotOperator extends BaseLogicalOperator implements LogicalOperatorInterfac
      */
     public static function precedence(): int
     {
-        return 3;
+        return 2;
     }
 }

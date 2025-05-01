@@ -77,8 +77,9 @@ class OperatorRegistry
     {
         $class = self::getOperator($symbol);
         if ($class === null) {
-            throw new InvalidArgumentException("Operator $symbol not found.");
+            throw new InvalidArgumentException("Operator $symbol not found");
         }
+        
         return new $class();
     }
 }

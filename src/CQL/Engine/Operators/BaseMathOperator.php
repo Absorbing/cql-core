@@ -2,17 +2,16 @@
 
 namespace CQL\Engine\Operators;
 
-use CQL\Engine\Operators\Contracts\ExpressionOperatorInterface;
 use CQL\Engine\Operators\Contracts\MathOperatorInterface;
 
-class MultiplyOperator extends BaseMathOperator implements MathOperatorInterface, ExpressionOperatorInterface
+class BaseMathOperator implements MathOperatorInterface
 {
     /**
      * {@inheritDoc}
      */
     public static function symbols(): array
     {
-        return ['*'];
+        return [];
     }
 
     /**
@@ -20,7 +19,7 @@ class MultiplyOperator extends BaseMathOperator implements MathOperatorInterface
      */
     public static function evaluate(mixed $left, mixed $right): int|float
     {
-        return $left * $right;
+        return 0;
     }
 
     /**
@@ -28,6 +27,6 @@ class MultiplyOperator extends BaseMathOperator implements MathOperatorInterface
      */
     public static function precedence(): int
     {
-        return 5;
+        return 4;
     }
 }

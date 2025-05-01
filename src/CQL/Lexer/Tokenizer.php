@@ -7,20 +7,13 @@ use CQL\Lexer\TokenType\Registry\TokenTypeRegistry;
 class Tokenizer
 {
     /**
-     * The input string to be tokenized.
-     *
-     * @var string
-     */
-    protected string $input;
-
-    /**
      * @var array<Token>
      */
     protected array $tokens = [];
 
-    public function __construct(string $input)
-    {
-        $this->input = $input;
+    public function __construct(
+        protected string $input
+    ) {
     }
 
     /**

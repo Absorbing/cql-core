@@ -12,11 +12,6 @@ use CQL\Exceptions\InterpreterException;
 class Interpreter
 {
     /**
-     * @var QueryNode
-     */
-    protected QueryNode $query;
-
-    /**
      * @var Collection
      */
     protected Collection $collection;
@@ -26,10 +21,9 @@ class Interpreter
      *
      * @param QueryNode $query
      */
-    public function __construct(QueryNode $query)
-    {
-        $this->query = $query;
-
+    public function __construct(
+        protected QueryNode $query
+    ) {
         $source = new CSVDataSource(
             $query->define->path,
             $query->define->hasHeaders

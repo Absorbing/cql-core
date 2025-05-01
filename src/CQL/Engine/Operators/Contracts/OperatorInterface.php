@@ -19,4 +19,11 @@ interface OperatorInterface
      * @return int|float
      */
     public static function evaluate(mixed $left, mixed $right): mixed;
+
+    /**
+     * Get the precedence of the operator.
+     *
+     * @return int
+     */
+    public static function precedence(): int;
 }

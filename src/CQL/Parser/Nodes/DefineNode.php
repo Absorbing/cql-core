@@ -7,26 +7,6 @@ use CQL\Data\Enum\CSVHeaderMode;
 class DefineNode
 {
     /**
-     * @var string
-     */
-    public string $path;
-
-    /**
-     * @var string
-     */
-    public string $alias;
-
-    /**
-     * @var array<string>
-     */
-    public array $columns;
-
-    /**
-     * @var bool
-     */
-    public CSVHeaderMode $hasHeaders = CSVHeaderMode::WITHOUT_HEADERS;
-
-    /**
      * Create a new DefineNode instance.
      *
      * @param string $path
@@ -35,14 +15,10 @@ class DefineNode
      * @param CSVHeaderMode $hasHeaders
      */
     public function __construct(
-        string $path,
-        string $alias,
-        array $columns,
-        CSVHeaderMode $hasHeaders = CSVHeaderMode::WITHOUT_HEADERS
+        public readonly string $path,
+        public readonly string $alias,
+        public readonly array $columns,
+        public readonly CSVHeaderMode $hasHeaders = CSVHeaderMode::WITHOUT_HEADERS
     ) {
-        $this->path = $path;
-        $this->alias = $alias;
-        $this->columns = $columns;
-        $this->hasHeaders = $hasHeaders;
     }
 }
