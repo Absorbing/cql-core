@@ -8,7 +8,8 @@ use CQL\Engine\Interpreter;
 use CQL\Engine\Operators\Registry\OperatorRegistry;
 
 if ($argc < 2) {
-    echo "Usage: php bin/execute.php \"DEFINE 'users.csv' AS data WITH HEADERS COLUMNS (id, name, age, gender) SELECT id, name, age FROM data WHERE age >= 18;\"";
+    echo "Usage: php bin/execute.php \"DEFINE 'users.csv' AS data WITH HEADERS COLUMNS (id, name, age, gender) SELECT id, name, age FROM data WHERE age >= 18;\"\n";
+    exit(1);
 }
 
 $query = implode(' ', array_slice($argv, 1));

@@ -52,7 +52,7 @@ class CSVDataSource implements DataSourceInterface
 
         $headers = [];
 
-        if ($this->hasHeaders) {
+        if ($this->hasHeaders === CSVHeaderMode::WITH_HEADERS) {
             $headers = fgetcsv($handle, 0, $this->delimiter);
 
             if ($headers === false) {
@@ -63,7 +63,7 @@ class CSVDataSource implements DataSourceInterface
         $index = 0;
 
         while (($row = fgetcsv($handle, 0, $this->delimiter)) !== false) {
-            if (!$this->hasHeaders && $index === 0) {
+            if ($this->hasHeaders === CSVHeaderMode::WITHOUT_HEADERS && $index === 0) {
                 $headers = array_map(fn($pos) => "column_" . ($pos + 1), array_keys($row));
             }
 

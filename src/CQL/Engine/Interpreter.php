@@ -12,7 +12,7 @@ use CQL\Exceptions\InterpreterException;
 class Interpreter
 {
     /**
-     * @var Collection
+     * @var Collection<array-key, mixed>
      */
     protected Collection $collection;
 
@@ -36,7 +36,7 @@ class Interpreter
     /**
      * Execute the query.
      *
-     * @return Collection
+     * @return Collection<array-key, mixed>
      */
     public function execute(): Collection
     {
@@ -55,16 +55,16 @@ class Interpreter
      */
     protected function applyWhere(): void
     {
+        if ($this->query->where === null) {
+            return;
+        }
+
         $condition = $this->query->where->condition;
         $operator = OperatorRegistry::resolve($condition->operator);
 
-        if (!$operator instanceof OperatorInterface) {
-            throw new InterpreterException("Unsupported operator ({$condition->operator}) in WHERE clause.");
-        }
-
         $this->collection = $this->collection->filter(
             function ($row) use ($condition, $operator) {
-                return $operator::evaluate($row[$condition->left] ?? null, $condition->right);
+                return $operator::evaluate($row[$condition->left] ?? null, $condition->right) > 0;
             }
         );
     }

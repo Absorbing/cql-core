@@ -38,8 +38,11 @@ class Parser
     public function parse(): QueryNode
     {
         if (!$this->match('KEYWORD', 'DEFINE')) {
+            $type = $this->tokens[$this->position]->type ?? '';
+            $value = isset($this->tokens[$this->position]->value) ? "({$this->tokens[$this->position]->value})" : '';
+
             throw new SyntaxException(
-                "Expected query to start with 'DEFINE' keyword, found '{$this->tokens[$this->position]->type}({$this->tokens[$this->position]->value})' at position {$this->position}"
+                "Expected query to start with 'DEFINE' keyword, found '{$type}{$value}' at position {$this->position}"
             );
         }
 
@@ -86,6 +89,7 @@ class Parser
         $columns = $this->parseColumns();
 
         $alias ??= preg_replace('/[^a-zA-Z0-9]/', '', pathinfo($path, PATHINFO_FILENAME));
+        /** @var string $alias */
 
         return new DefineNode(
             $path,
@@ -249,7 +253,7 @@ class Parser
         $right = $this->parseExpression();
 
         return new WhereNode(
-            new ConditionNode($left->value, $operator->value, $right->value)
+            new ConditionNode($left, $operator, $right)
         );
     }
 
@@ -262,6 +266,11 @@ class Parser
 
         while ($this->isExpressionOperator($this->peek())) {
             $operatorToken = $this->peek();
+
+            if ($operatorToken === null) {
+                throw new ParserException("Unexpected end of tokens at position {$this->position}");
+            }
+
             $operator = OperatorRegistry::resolve($operatorToken->value);
 
             if ($operator->precedence() < $minPrecedence) {
@@ -367,7 +376,17 @@ class Parser
             return false;
         }
 
-        $operator = OperatorRegistry::resolve($token->value);
-        return $operator instanceof ExpressionOperatorInterface;
+        // Skip things that are never operators
+        if (!in_array($token->type, ['MATH_OPERATOR', 'LOGICAL_OPERATOR', 'COMPARISON_OPERATOR'])) {
+            return false;
+        }
+
+        // Now try to resolve safely
+        try {
+            $operator = OperatorRegistry::resolve($token->value);
+            return $operator instanceof ExpressionOperatorInterface;
+        } catch (\InvalidArgumentException) {
+            return false;
+        }
     }
 }

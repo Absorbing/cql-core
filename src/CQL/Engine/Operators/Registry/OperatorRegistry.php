@@ -76,10 +76,12 @@ class OperatorRegistry
     public static function resolve(string $symbol): OperatorInterface
     {
         $class = self::getOperator($symbol);
+
         if ($class === null) {
             throw new InvalidArgumentException("Operator $symbol not found");
         }
-        
+
+        assert(is_subclass_of($class, OperatorInterface::class));
         return new $class();
     }
 }
