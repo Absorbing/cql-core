@@ -4,7 +4,7 @@ namespace CQL\Engine\Operators;
 
 use CQL\Engine\Operators\Contracts\LogicalOperatorInterface;
 
-class OrOperator implements LogicalOperatorInterface
+class OrOperator extends BaseLogicalOperator implements LogicalOperatorInterface
 {
     /**
      * {@inheritDoc}

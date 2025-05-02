@@ -8,16 +8,12 @@ use CQL\Engine\Operators\Contracts\OperatorInterface;
 use CQL\Parser\Nodes\QueryNode;
 use CQL\Engine\Operators\Registry\OperatorRegistry;
 use CQL\Exceptions\InterpreterException;
+use CQL\Parser\Nodes\ExpressionNode;
 
 class Interpreter
 {
     /**
-     * @var QueryNode
-     */
-    protected QueryNode $query;
-
-    /**
-     * @var Collection
+     * @var Collection<array-key, mixed>
      */
     protected Collection $collection;
 
@@ -26,10 +22,9 @@ class Interpreter
      *
      * @param QueryNode $query
      */
-    public function __construct(QueryNode $query)
-    {
-        $this->query = $query;
-
+    public function __construct(
+        protected QueryNode $query
+    ) {
         $source = new CSVDataSource(
             $query->define->path,
             $query->define->hasHeaders
@@ -42,7 +37,7 @@ class Interpreter
     /**
      * Execute the query.
      *
-     * @return Collection
+     * @return Collection<array-key, mixed>
      */
     public function execute(): Collection
     {
@@ -61,18 +56,18 @@ class Interpreter
      */
     protected function applyWhere(): void
     {
+        if (!$this->query->where) {
+            return;
+        }
+
         $condition = $this->query->where->condition;
         $operator = OperatorRegistry::resolve($condition->operator);
 
-        if (!$operator instanceof OperatorInterface) {
-            throw new InterpreterException("Unsupported operator ({$condition->operator}) in WHERE clause.");
-        }
-
-        $this->collection = $this->collection->filter(
-            function ($row) use ($condition, $operator) {
-                return $operator::evaluate($row[$condition->left] ?? null, $condition->right);
-            }
-        );
+        $this->collection = $this->collection->filter(function ($row) use ($condition, $operator): bool {
+            $left = $this->evaluateOperand($condition->left, $row);
+            $right = $this->evaluateOperand($condition->right, $row);
+            return (bool)$operator::evaluate($left, $right);
+        });
     }
 
     /**
@@ -89,5 +84,33 @@ class Interpreter
                 return array_intersect_key($row, array_flip($columns));
             }
         );
+    }
+
+    /**
+     * Evaluate an operand.
+     *
+     * @param mixed $operand
+     * @param array<string, mixed> $row
+     * @return mixed
+     */
+    protected function evaluateOperand(mixed $operand, array $row): mixed
+    {
+        if ($operand instanceof \CQL\Parser\Nodes\ExpressionNode) {
+            $left = $this->evaluateOperand($operand->left, $row);
+            $right = $this->evaluateOperand($operand->right, $row);
+            $operator = \CQL\Engine\Operators\Registry\OperatorRegistry::resolve($operand->operator);
+
+            return $operator::evaluate($left, $right);
+        }
+
+        if (is_string($operand)) {
+            if (is_numeric($operand)) {
+                return $operand + 0;
+            }
+
+            return $row[$operand] ?? null;
+        }
+
+        return $operand;
     }
 }

@@ -2,9 +2,10 @@
 
 namespace CQL\Engine\Operators;
 
+use CQL\Engine\Operators\Contracts\ExpressionOperatorInterface;
 use CQL\Engine\Operators\Contracts\MathOperatorInterface;
 
-class DivideOperator implements MathOperatorInterface
+class DivideOperator extends BaseMathOperator implements MathOperatorInterface, ExpressionOperatorInterface
 {
     /**
      * {@inheritDoc}
@@ -20,5 +21,13 @@ class DivideOperator implements MathOperatorInterface
     public static function evaluate(mixed $left, mixed $right): int|float
     {
         return $left / $right;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public static function precedence(): int
+    {
+        return 5;
     }
 }

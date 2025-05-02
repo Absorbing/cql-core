@@ -3,6 +3,8 @@
 namespace CQL\Parser;
 
 use CQL\Data\Enum\CSVHeaderMode;
+use CQL\Engine\Operators\Contracts\ExpressionOperatorInterface;
+use CQL\Engine\Operators\Registry\OperatorRegistry;
 use CQL\Lexer\Token;
 use CQL\Parser\Nodes\ConditionNode;
 use CQL\Parser\Nodes\DefineNode;
@@ -10,16 +12,13 @@ use CQL\Parser\Nodes\FromNode;
 use CQL\Parser\Nodes\QueryNode;
 use CQL\Parser\Nodes\SelectNode;
 use CQL\Parser\Nodes\WhereNode;
+use CQL\Parser\Nodes\ExpressionNode;
 use CQL\Exceptions\ParserException;
 use CQL\Exceptions\SyntaxException;
+use PhpParser\Node\Stmt\Expression;
 
 class Parser
 {
-    /**
-     * @var array<Token>
-     */
-    protected array $tokens;
-
     /**
      * @var int
      */
@@ -31,16 +30,19 @@ class Parser
      * @param array<Token> $tokens
      * @return void
      */
-    public function __construct(array $tokens)
-    {
-        $this->tokens = $tokens;
+    public function __construct(
+        protected array $tokens
+    ) {
     }
 
     public function parse(): QueryNode
     {
         if (!$this->match('KEYWORD', 'DEFINE')) {
+            $type = $this->tokens[$this->position]->type ?? '';
+            $value = isset($this->tokens[$this->position]->value) ? "({$this->tokens[$this->position]->value})" : '';
+
             throw new SyntaxException(
-                "Expected query to start with 'DEFINE' keyword, found '{$this->tokens[$this->position]->type}({$this->tokens[$this->position]->value})' at position {$this->position}"
+                "Expected query to start with 'DEFINE' keyword, found '{$type}{$value}' at position {$this->position}"
             );
         }
 
@@ -71,63 +73,10 @@ class Parser
     }
 
     /**
-     * Parse the SELECT statement.
+     * Parse the DEFINE statement.
      *
-     * @return SelectNode
+     * @return DefineNode
      */
-    protected function parseSelect(): SelectNode
-    {
-        $this->expect('KEYWORD', 'SELECT');
-
-        $columns = [];
-
-        do {
-            $token = $this->expect('IDENTIFIER');
-
-            $columns[] = $token->value;
-
-            if (!$this->match('COMMA')) {
-                break;
-            }
-
-            $this->advance();
-        } while (true);
-
-        return new SelectNode($columns);
-    }
-
-    /**
-     * Parse the FROM statement.
-     *
-     * @return FromNode
-     */
-    protected function parseFrom(): FromNode
-    {
-        $this->expect('KEYWORD', 'FROM');
-
-        $token = $this->expect('IDENTIFIER');
-
-        return new FromNode($token->value);
-    }
-
-    /**
-     * Parse the WHERE statement.
-     *
-     * @return WhereNode
-     */
-    protected function parseWhere(): WhereNode
-    {
-        $this->expect('KEYWORD', 'WHERE');
-
-        $left = $this->expect('IDENTIFIER');
-        $operator = $this->expect('COMPARISON_OPERATOR');
-        $right = $this->advance();
-
-        return new WhereNode(
-            new ConditionNode($left->value, $operator->value, $right->value)
-        );
-    }
-
     protected function parseDefine(): DefineNode
     {
         $this->expect('KEYWORD', 'DEFINE');
@@ -140,6 +89,7 @@ class Parser
         $columns = $this->parseColumns();
 
         $alias ??= preg_replace('/[^a-zA-Z0-9]/', '', pathinfo($path, PATHINFO_FILENAME));
+        /** @var string $alias */
 
         return new DefineNode(
             $path,
@@ -250,6 +200,110 @@ class Parser
     }
 
     /**
+     * Parse the SELECT statement.
+     *
+     * @return SelectNode
+     */
+    protected function parseSelect(): SelectNode
+    {
+        $this->expect('KEYWORD', 'SELECT');
+
+        $columns = [];
+
+        do {
+            $token = $this->expect('IDENTIFIER');
+
+            $columns[] = $token->value;
+
+            if (!$this->match('COMMA')) {
+                break;
+            }
+
+            $this->advance();
+        } while (true);
+
+        return new SelectNode($columns);
+    }
+
+    /**
+     * Parse the FROM statement.
+     *
+     * @return FromNode
+     */
+    protected function parseFrom(): FromNode
+    {
+        $this->expect('KEYWORD', 'FROM');
+
+        $token = $this->expect('IDENTIFIER');
+
+        return new FromNode($token->value);
+    }
+
+    /**
+     * Parse the WHERE statement.
+     *
+     * @return WhereNode
+     */
+    protected function parseWhere(): WhereNode
+    {
+        $this->expect('KEYWORD', 'WHERE');
+
+        $left = $this->parseExpression();
+        $operator = $this->expect('COMPARISON_OPERATOR')->value;
+        $right = $this->parseExpression();
+
+        return new WhereNode(
+            new ConditionNode($left, $operator, $right)
+        );
+    }
+
+    /**
+     *
+     */
+    protected function parseExpression(int $minPrecedence = 0): mixed
+    {
+        $left = $this->parsePrimary();
+
+        while ($this->isExpressionOperator($this->peek())) {
+            $operatorToken = $this->peek();
+
+            if ($operatorToken === null) {
+                throw new ParserException("Unexpected end of tokens at position {$this->position}");
+            }
+
+            $operator = OperatorRegistry::resolve($operatorToken->value);
+
+            if ($operator->precedence() < $minPrecedence) {
+                break;
+            }
+
+            $this->advance();
+
+            $right = $this->parseExpression($operator->precedence() + 1);
+            $left = new ExpressionNode($left, $operatorToken->value, $right);
+        }
+
+        return $left;
+    }
+
+    protected function parsePrimary(): mixed
+    {
+        if ($this->match('LPAREN')) {
+            $this->advance();
+            $expression = $this->parseExpression();
+            $this->expect('RPAREN');
+            return $expression;
+        }
+
+        if ($this->match('IDENTIFIER') || $this->match('STRING') || $this->match('NUMBER')) {
+            $token = $this->advance();
+            return $token->value;
+        }
+
+        throw new ParserException("Unexpected token: {$this->tokens[$this->position]->type} at position {$this->position}");
+    }
+
+    /**
      * Expect a token of a specific type and value.
      *
      * @param string $type
@@ -297,5 +351,42 @@ class Parser
     protected function advance(): Token
     {
         return $this->tokens[$this->position++];
+    }
+
+    /**
+     * Peek at the next token without advancing.
+     *
+     * @param int $offset
+     * @return Token|null
+     */
+    protected function peek(int $offset = 0): ?Token
+    {
+        return $this->tokens[$this->position + $offset] ?? null;
+    }
+
+    /**
+     * Check if the current token is an expression operator.
+     *
+     * @param Token|null $token
+     * @return bool
+     */
+    protected function isExpressionOperator(?Token $token): bool
+    {
+        if ($token === null) {
+            return false;
+        }
+
+        // Skip things that are never operators
+        if (!in_array($token->type, ['MATH_OPERATOR', 'LOGICAL_OPERATOR', 'COMPARISON_OPERATOR'])) {
+            return false;
+        }
+
+        // Now try to resolve safely
+        try {
+            $operator = OperatorRegistry::resolve($token->value);
+            return $operator instanceof ExpressionOperatorInterface;
+        } catch (\InvalidArgumentException) {
+            return false;
+        }
     }
 }

@@ -4,7 +4,7 @@ namespace CQL\Engine\Operators;
 
 use CQL\Engine\Operators\Contracts\ComparisonOperatorInterface;
 
-class GreaterThanOrEqualOperator implements ComparisonOperatorInterface
+class GreaterThanOrEqualOperator extends BaseComparisonOperator implements ComparisonOperatorInterface
 {
     /**
      * {@inheritDoc}

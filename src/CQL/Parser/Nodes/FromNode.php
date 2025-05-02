@@ -5,20 +5,13 @@ namespace CQL\Parser\Nodes;
 class FromNode
 {
     /**
-     * The table name.
-     *
-     * @var string
-     */
-    public string $table;
-
-    /**
      * Create a new FromNode instance.
      *
      * @param string $table
      * @return void
      */
-    public function __construct(string $table)
-    {
-        $this->table = $table;
+    public function __construct(
+        public readonly string $table
+    ) {
     }
 }

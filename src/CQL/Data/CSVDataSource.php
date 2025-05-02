@@ -9,24 +9,9 @@ use CQL\Exceptions\DataSourceException;
 class CSVDataSource implements DataSourceInterface
 {
     /**
-     * @var string
-     */
-    protected string $path;
-
-    /**
-     * @var string
-     */
-    protected string $delimiter;
-
-    /**
      * @var array<int, array<string, string>>
      */
     protected array $rows = [];
-
-    /**
-     * @var CSVHeaderMode
-     */
-    protected CSVHeaderMode $hasHeaders;
 
     /**
      * Create a new CSVDataSource instance.
@@ -36,14 +21,10 @@ class CSVDataSource implements DataSourceInterface
      * @param string $delimiter
      */
     public function __construct(
-        string $path,
-        CSVHeaderMode $hasHeaders = CSVHeaderMode::WITHOUT_HEADERS,
-        string $delimiter = ','
+        protected string $path,
+        protected CSVHeaderMode $hasHeaders = CSVHeaderMode::WITHOUT_HEADERS,
+        protected string $delimiter = ','
     ) {
-        $this->path = $path;
-        $this->hasHeaders = $hasHeaders;
-        $this->delimiter = $delimiter;
-
         // strip single and double quotes from path
         $this->path = str_replace(['\'', '"'], '', $this->path);
 
@@ -71,7 +52,7 @@ class CSVDataSource implements DataSourceInterface
 
         $headers = [];
 
-        if ($this->hasHeaders) {
+        if ($this->hasHeaders === CSVHeaderMode::WITH_HEADERS) {
             $headers = fgetcsv($handle, 0, $this->delimiter);
 
             if ($headers === false) {
@@ -82,7 +63,7 @@ class CSVDataSource implements DataSourceInterface
         $index = 0;
 
         while (($row = fgetcsv($handle, 0, $this->delimiter)) !== false) {
-            if (!$this->hasHeaders && $index === 0) {
+            if ($this->hasHeaders === CSVHeaderMode::WITHOUT_HEADERS && $index === 0) {
                 $headers = array_map(fn($pos) => "column_" . ($pos + 1), array_keys($row));
             }
 

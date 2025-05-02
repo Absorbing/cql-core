@@ -13,18 +13,13 @@ use IteratorAggregate;
 class Collection implements IteratorAggregate
 {
     /**
-     * @var array<TKey, TValue>
-     */
-    protected array $items;
-
-    /**
      * Create a new Collection instance
      *
      * @param array<TKey, TValue> $items
      */
-    public function __construct(array $items)
-    {
-        $this->items = $items;
+    public function __construct(
+        protected array $items
+    ) {
     }
 
     /**

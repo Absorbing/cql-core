@@ -5,31 +5,16 @@ namespace CQL\Parser\Nodes;
 class ConditionNode
 {
     /**
-     * @var string
-     */
-    public string $left;
-
-    /**
-     * @var string
-     */
-    public string $operator;
-
-    /**
-     * @var string
-     */
-    public string $right;
-
-    /**
      * Create a new ConditionNode instance.
      *
-     * @param string $left
+     * @param mixed $left
      * @param string $operator
-     * @param string $right
+     * @param mixed $right
      */
-    public function __construct(string $left, string $operator, string $right)
-    {
-        $this->left = $left;
-        $this->operator = $operator;
-        $this->right = $right;
+    public function __construct(
+        public readonly mixed $left,
+        public readonly string $operator,
+        public readonly mixed $right
+    ) {
     }
 }

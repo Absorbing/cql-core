@@ -19,7 +19,7 @@ use CQL\Engine\Operators\PowerOperator;
 use CQL\Engine\Operators\SubtractOperator;
 
 /**
- * @SuppressWarnings(PHPMD.CouplingBetweenObjects)
+ * @SuppressWarnings PHPMD.CouplingBetweenObjects
  */
 class OperatorProvider
 {

@@ -4,14 +4,14 @@ namespace CQL\Engine\Operators;
 
 use CQL\Engine\Operators\Contracts\ComparisonOperatorInterface;
 
-class LessThanOrEqualOperator extends BaseComparisonOperator implements ComparisonOperatorInterface
+class BaseComparisonOperator implements ComparisonOperatorInterface
 {
     /**
      * {@inheritDoc}
      */
     public static function symbols(): array
     {
-        return ['<='];
+        return [];
     }
 
     /**
@@ -19,6 +19,14 @@ class LessThanOrEqualOperator extends BaseComparisonOperator implements Comparis
      */
     public static function evaluate(mixed $left, mixed $right): bool
     {
-        return $left <= $right;
+        return false;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public static function precedence(): int
+    {
+        return 3;
     }
 }
