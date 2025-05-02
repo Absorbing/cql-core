@@ -14,22 +14,17 @@ if ($argc < 2) {
 
 $query = implode(' ', array_slice($argv, 1));
 
-try {
-    OperatorRegistry::initialize();
+OperatorRegistry::initialize();
 
-    $tokenizer = new Tokenizer($query);
-    $tokens = $tokenizer->tokenize();
+$tokenizer = new Tokenizer($query);
+$tokens = $tokenizer->tokenize();
 
-    $parser = new Parser($tokens);
-    $ast = $parser->parse();
+$parser = new Parser($tokens);
+$ast = $parser->parse();
 
-    $interpreter = new Interpreter($ast);
-    $result = $interpreter->execute();
+$interpreter = new Interpreter($ast);
+$result = $interpreter->execute();
 
-    foreach ($result->toArray() as $row) {
-        echo json_encode($row, JSON_PRETTY_PRINT) . PHP_EOL;
-    }
-} catch (\Throwable $e) {
-    echo $e->getMessage() . PHP_EOL;
-    exit(1);
+foreach ($result->toArray() as $row) {
+    echo json_encode($row, JSON_PRETTY_PRINT) . PHP_EOL;
 }

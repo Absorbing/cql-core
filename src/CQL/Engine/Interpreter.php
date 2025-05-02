@@ -8,6 +8,7 @@ use CQL\Engine\Operators\Contracts\OperatorInterface;
 use CQL\Parser\Nodes\QueryNode;
 use CQL\Engine\Operators\Registry\OperatorRegistry;
 use CQL\Exceptions\InterpreterException;
+use CQL\Parser\Nodes\ExpressionNode;
 
 class Interpreter
 {
@@ -55,18 +56,18 @@ class Interpreter
      */
     protected function applyWhere(): void
     {
-        if ($this->query->where === null) {
+        if (!$this->query->where) {
             return;
         }
 
         $condition = $this->query->where->condition;
         $operator = OperatorRegistry::resolve($condition->operator);
 
-        $this->collection = $this->collection->filter(
-            function ($row) use ($condition, $operator) {
-                return $operator::evaluate($row[$condition->left] ?? null, $condition->right) > 0;
-            }
-        );
+        $this->collection = $this->collection->filter(function ($row) use ($condition, $operator): bool {
+            $left = $this->evaluateOperand($condition->left, $row);
+            $right = $this->evaluateOperand($condition->right, $row);
+            return (bool)$operator::evaluate($left, $right);
+        });
     }
 
     /**
@@ -84,4 +85,33 @@ class Interpreter
             }
         );
     }
+
+    /**
+     * Evaluate an operand.
+     *
+     * @param mixed $operand
+     * @param array<string, mixed> $row
+     * @return mixed
+     */
+    protected function evaluateOperand(mixed $operand, array $row): mixed
+    {
+        if ($operand instanceof \CQL\Parser\Nodes\ExpressionNode) {
+            $left = $this->evaluateOperand($operand->left, $row);
+            $right = $this->evaluateOperand($operand->right, $row);
+            $operator = \CQL\Engine\Operators\Registry\OperatorRegistry::resolve($operand->operator);
+
+            return $operator::evaluate($left, $right);
+        }
+
+        if (is_string($operand)) {
+            if (is_numeric($operand)) {
+                return $operand + 0;
+            }
+
+            return $row[$operand] ?? null;
+        }
+
+        return $operand;
+    }
+
 }
