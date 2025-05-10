@@ -4,6 +4,13 @@ namespace CQL\Lexer;
 
 readonly class Token
 {
+    /**
+     * Creates a new token instance.
+     *
+     * @param string $type
+     * @param mixed $value
+     * @param int $position
+     */
     public function __construct(
         public string $type,
         public mixed $value,

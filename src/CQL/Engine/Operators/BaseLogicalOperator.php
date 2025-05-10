@@ -8,6 +8,8 @@ class BaseLogicalOperator implements LogicalOperatorInterface
 {
     /**
      * {@inheritDoc}
+     *
+     * @return array<string>
      */
     public static function symbols(): array
     {
@@ -16,6 +18,8 @@ class BaseLogicalOperator implements LogicalOperatorInterface
 
     /**
      * {@inheritDoc}
+     *
+     * @return bool
      */
     public static function evaluate(mixed $left, mixed $right): bool
     {
@@ -24,6 +28,8 @@ class BaseLogicalOperator implements LogicalOperatorInterface
 
     /**
      * {@inheritDoc}
+     *
+     * @return int
      */
     public static function precedence(): int
     {

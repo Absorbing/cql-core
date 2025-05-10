@@ -11,6 +11,12 @@ class Tokenizer
      */
     protected array $tokens = [];
 
+    /**
+     * Create a new Tokenizer instance.
+     *
+     * @param string $input
+     * @return void
+     */
     public function __construct(
         protected string $input
     ) {

@@ -31,7 +31,7 @@ class InterpreterException extends RuntimeException
     public function __toString(): string
     {
         return sprintf(
-            "SyntaxException: [%d]: %s\n",
+            "InterpreterException: [%d]: %s\n",
             $this->code,
             $this->message
         );

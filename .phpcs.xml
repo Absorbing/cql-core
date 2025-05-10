@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<ruleset name="CQL - Require Only Useful Doc Comments">
+    <description>Require doc comments with @param/@return, but no formatting or type name nags.</description>
+
+    <rule ref="Squiz.Commenting.FunctionComment">
+        <!-- Disable annoying type-alias / formatting enforcement -->
+        <exclude name="Squiz.Commenting.FunctionComment.ParamCommentSpacing"/>
+        <exclude name="Squiz.Commenting.FunctionComment.SpacingAfterParamType"/>
+        <exclude name="Squiz.Commenting.FunctionComment.SpacingAfterParamName"/>
+        <exclude name="Squiz.Commenting.FunctionComment.IncorrectTypeHint"/>
+        <exclude name="Squiz.Commenting.FunctionComment.IncorrectReturnTypeHint"/>
+        <exclude name="Squiz.Commenting.FunctionComment.InvalidReturn"/>
+        <exclude name="Squiz.Commenting.FunctionComment.IncorrectParamVarName"/>
+        <exclude name="Squiz.Commenting.FunctionComment.EmptyThrows"/>
+        <exclude name="Squiz.Commenting.FunctionComment.MissingParamComment"/>
+        <exclude name="Squiz.Commenting.FunctionComment.MissingParamTag"/>
+    </rule>
+    <file>src</file>
+</ruleset>

@@ -8,6 +8,8 @@ class GreaterThanOrEqualOperator extends BaseComparisonOperator implements Compa
 {
     /**
      * {@inheritDoc}
+     *
+     * @return array<string>
      */
     public static function symbols(): array
     {
@@ -16,6 +18,8 @@ class GreaterThanOrEqualOperator extends BaseComparisonOperator implements Compa
 
     /**
      * {@inheritDoc}
+     *
+     * @return int
      */
     public static function evaluate(mixed $left, mixed $right): bool
     {

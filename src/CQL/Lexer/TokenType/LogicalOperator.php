@@ -19,6 +19,8 @@ enum LogicalOperator: string
 
     /**
      * {@inheritDoc}
+     *
+     * @return string
      */
     public static function groupName(): string
     {

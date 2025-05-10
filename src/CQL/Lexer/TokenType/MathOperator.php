@@ -22,6 +22,8 @@ enum MathOperator: string
 
     /**
      * {@inheritDoc}
+     *
+     * @return string
      */
     public static function groupName(): string
     {
@@ -30,6 +32,8 @@ enum MathOperator: string
 
     /**
      * {@inheritDoc}
+     *
+     * @return string
      */
     public static function pattern(): string
     {

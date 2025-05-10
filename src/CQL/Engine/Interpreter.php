@@ -231,11 +231,24 @@ class Interpreter
             }
 
             if (!str_contains($operand, '.')) {
+                $matches = [];
+
                 foreach ($row as $key => $value) {
                     if (str_ends_with($key, ".$operand")) {
-                        return $value; // ambiguous fallback
+                        $matches[$key] = $value;
                     }
                 }
+
+                if (count($matches) === 1) {
+                    return reset($matches); // Unambiguous match
+                }
+
+                if (count($matches) > 1) {
+                    $options = implode(', ', array_keys($matches));
+                    throw new InterpreterException("Ambiguous column reference '$operand'. Matches: $options");
+                }
+
+                return null;
             }
 
             return null;

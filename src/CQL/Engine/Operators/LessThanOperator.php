@@ -8,6 +8,8 @@ class LessThanOperator extends BaseComparisonOperator implements ComparisonOpera
 {
     /**
      * {@inheritDoc}
+     *
+     * @return array<string>
      */
     public static function symbols(): array
     {
@@ -16,6 +18,8 @@ class LessThanOperator extends BaseComparisonOperator implements ComparisonOpera
 
     /**
      * {@inheritDoc}
+     *
+     * @return int
      */
     public static function evaluate(mixed $left, mixed $right): bool
     {

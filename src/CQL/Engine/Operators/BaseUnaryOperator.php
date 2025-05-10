@@ -9,6 +9,8 @@ class BaseUnaryOperator implements UnaryOperatorInterface
 {
     /**
      * {@inheritDoc}
+     *
+     * @return array<string>
      */
     public static function symbols(): array
     {
@@ -17,6 +19,8 @@ class BaseUnaryOperator implements UnaryOperatorInterface
 
     /**
      * {@inheritDoc}
+     *
+     * @return bool
      */
     public static function evaluate(mixed $value): bool
     {
@@ -25,6 +29,8 @@ class BaseUnaryOperator implements UnaryOperatorInterface
 
     /**
      * {@inheritDoc}
+     *
+     * @return int
      */
     public static function precedence(): int
     {
@@ -33,6 +39,8 @@ class BaseUnaryOperator implements UnaryOperatorInterface
 
     /**
      * {@inheritDoc}
+     *
+     * @return OperandPosition
      */
     public static function operandPosition(): OperandPosition
     {

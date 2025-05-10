@@ -36,6 +36,8 @@ class OperatorRegistry
 
     /**
      * Ensure operators are loaded once.
+     *
+     * @return void
      */
     protected static function boot(): void
     {

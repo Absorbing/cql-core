@@ -41,6 +41,8 @@ class ExistsOperator extends BaseUnaryOperator implements UnaryOperatorInterface
 
     /**
      * Get the operand position for this operator.
+     *
+     * @return OperandPosition
      */
     public static function operandPosition(): OperandPosition
     {
