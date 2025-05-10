@@ -2,7 +2,7 @@
 
 namespace CQL\Parser\Nodes;
 
-class ExpressionNode
+readonly class ExpressionNode
 {
     public function __construct(
         public mixed $left,

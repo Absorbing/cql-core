@@ -20,6 +20,8 @@ enum ComparisonOperator: string
     case GREATER_THAN = '>';
     case LESS_THAN_OR_EQUAL = '<=';
     case LESS_THAN = '<';
+    case IN = 'IN';
+    case NOT_IN = 'NOT IN';
 
     /**
      * {@inheritDoc}

@@ -31,7 +31,7 @@ class Collection implements IteratorAggregate
     public function filter(callable $callback): Collection
     {
         $filtered = array_filter($this->items, $callback, ARRAY_FILTER_USE_BOTH);
-        return new self($filtered); // Preserve keys
+        return new self($filtered);
     }
 
     /**
@@ -43,7 +43,7 @@ class Collection implements IteratorAggregate
     public function map(callable $callback): Collection
     {
         $mapped = array_map($callback, $this->items);
-        return new self($mapped); // Create a new collection with transformed values
+        return new self($mapped);
     }
 
     /**
@@ -75,4 +75,29 @@ class Collection implements IteratorAggregate
     {
         return count($this->items);
     }
+
+    public function first(): mixed
+    {
+        return reset($this->items);
+    }
+
+    public function flatMap(callable $callback): self
+    {
+        $results = [];
+
+        foreach ($this->items as $key => $value) {
+            $mapped = $callback($value, $key);
+
+            if (is_array($mapped)) {
+                foreach ($mapped as $subValue) {
+                    $results[] = $subValue;
+                }
+            } elseif ($mapped !== null) {
+                $results[] = $mapped;
+            }
+        }
+
+        return new self($results);
+    }
+
 }

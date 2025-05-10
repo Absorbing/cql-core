@@ -2,7 +2,7 @@
 
 namespace CQL\Parser\Nodes;
 
-class WhereNode
+readonly class WhereNode
 {
     /**
      * Create a new WhereNode instance.

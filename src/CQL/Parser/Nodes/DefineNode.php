@@ -2,9 +2,9 @@
 
 namespace CQL\Parser\Nodes;
 
-use CQL\Data\Enum\CSVHeaderMode;
+use CQL\Data\Enums\CSVHeaderMode;
 
-class DefineNode
+readonly class DefineNode
 {
     /**
      * Create a new DefineNode instance.

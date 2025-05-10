@@ -3,7 +3,7 @@
 namespace CQL\Data;
 
 use CQL\Data\Contracts\DataSourceInterface;
-use CQL\Data\Enum\CSVHeaderMode;
+use CQL\Data\Enums\CSVHeaderMode;
 use CQL\Exceptions\DataSourceException;
 
 class CSVDataSource implements DataSourceInterface
@@ -13,19 +13,21 @@ class CSVDataSource implements DataSourceInterface
      */
     protected array $rows = [];
 
+
     /**
      * Create a new CSVDataSource instance.
      *
      * @param string $path
      * @param CSVHeaderMode $hasHeaders
      * @param string $delimiter
+     * @param string $alias
      */
     public function __construct(
         protected string $path,
         protected CSVHeaderMode $hasHeaders = CSVHeaderMode::WITHOUT_HEADERS,
-        protected string $delimiter = ','
+        protected string $delimiter = ',',
+        protected string $alias = ''
     ) {
-        // strip single and double quotes from path
         $this->path = str_replace(['\'', '"'], '', $this->path);
 
         if (!file_exists($this->path)) {
@@ -79,7 +81,13 @@ class CSVDataSource implements DataSourceInterface
                 throw new DataSourceException("Failed to combine headers and row at index {$index}");
             }
 
-            $this->rows[] = $combined;
+            $namespacedRow = [];
+            foreach ($combined as $key => $value) {
+                $namespacedRow["{$this->alias}.{$key}"] = $value;
+            }
+
+            $this->rows[] = $namespacedRow;
+
             $index++;
         }
 

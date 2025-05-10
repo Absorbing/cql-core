@@ -14,8 +14,6 @@ if ($argc < 2) {
 
 $query = implode(' ', array_slice($argv, 1));
 
-OperatorRegistry::initialize();
-
 $tokenizer = new Tokenizer($query);
 $tokens = $tokenizer->tokenize();
 

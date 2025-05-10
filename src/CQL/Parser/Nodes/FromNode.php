@@ -2,16 +2,18 @@
 
 namespace CQL\Parser\Nodes;
 
-class FromNode
+readonly class FromNode
 {
     /**
      * Create a new FromNode instance.
      *
      * @param string $table
+     * @param array<JoinNode> $joins
      * @return void
      */
     public function __construct(
-        public readonly string $table
+        public readonly string $table,
+        public readonly array $joins = []
     ) {
     }
 }

@@ -2,7 +2,7 @@
 
 namespace CQL\Support\Debug;
 
-use CQL\Data\Enum\CSVHeaderMode;
+use CQL\Data\Enums\CSVHeaderMode;
 use CQL\Parser\Nodes\QueryNode;
 use CQL\Parser\Nodes\DefineNode;
 use CQL\Parser\Nodes\SelectNode;

@@ -40,7 +40,7 @@ class Tokenizer
 
                     $this->tokens[] = new Token($name, $value, $pos);
 
-                    break; // First match wins
+                    break;
                 }
             }
         }

@@ -2,7 +2,7 @@
 
 namespace CQL\Parser\Nodes;
 
-class ConditionNode
+readonly class ConditionNode
 {
     /**
      * Create a new ConditionNode instance.

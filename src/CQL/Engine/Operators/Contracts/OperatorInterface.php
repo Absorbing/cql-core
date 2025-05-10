@@ -2,7 +2,7 @@
 
 namespace CQL\Engine\Operators\Contracts;
 
-interface OperatorInterface
+interface OperatorInterface extends ResolvableOperatorInterface
 {
     /**
      * Return the symbol of the operator.

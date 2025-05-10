@@ -35,6 +35,7 @@ enum Keyword: string
     case LEFT = 'LEFT';
     case RIGHT = 'RIGHT';
     case ON = 'ON';
+    case EXISTS = 'EXISTS';
 
 //    TODO: Future implementation
 //    case INSERT = 'INSERT';
