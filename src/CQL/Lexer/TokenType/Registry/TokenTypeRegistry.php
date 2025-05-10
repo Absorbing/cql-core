@@ -5,9 +5,14 @@ namespace CQL\Lexer\TokenType\Registry;
 use CQL\Lexer\TokenType\Traits\TokenEnum;
 use CQL\Providers\TokenTypeProvider;
 use CQL\Exceptions\LexerException;
+use CQL\Lexer\Token;
 
 class TokenTypeRegistry
 {
+    private static $structuralTokens = [
+        'DOT',
+    ];
+
     /**
      * The patterns for the token groups
      *
@@ -55,5 +60,27 @@ class TokenTypeRegistry
         }
 
         return $patterns;
+    }
+
+    /**
+     * Check if the token type is structural.
+     *
+     * @param string $type
+     * @return bool
+     */
+    public static function isStructural(string $type): bool
+    {
+        return in_array($type, self::$structuralTokens);
+    }
+
+    /**
+     * Check if the token is a wildcard.
+     *
+     * @param Token $token
+     * @return bool
+     */
+    public static function isWildcard(Token $token): bool
+    {
+        return $token->type === 'MATH_OPERATOR' && $token->value === '*';
     }
 }

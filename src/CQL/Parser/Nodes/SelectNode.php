@@ -3,12 +3,12 @@
 namespace CQL\Parser\Nodes;
 
 
-class SelectNode
+readonly class SelectNode
 {
     /**
      * Create a new SelectNode instance.
      *
-     * @param array<string> $columns
+     * @param list<string|WildcardNode> $columns
      * @return void
      */
     public function __construct(

@@ -2,7 +2,7 @@
 
 namespace Parser;
 
-use CQL\Data\Enum\CSVHeaderMode;
+use CQL\Data\Enums\CSVHeaderMode;
 use PHPUnit\Framework\TestCase;
 use CQL\Lexer\Tokenizer;
 use CQL\Parser\Parser;
@@ -60,7 +60,7 @@ class ParserTest extends TestCase
         $tokens = $tokenizer->tokenize();
 
         $parser = new Parser($tokens);
-        $parser->parse(); // Should throw!
+        $parser->parse();
     }
 
     public function test_define_no_headers(): void
@@ -84,7 +84,7 @@ class ParserTest extends TestCase
         $parser = new Parser($tokens);
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessageMatches('/Expected token KEYWORD\(AS\)|STRING/'); // adjust regex for your message
+        $this->expectExceptionMessageMatches('/Expected token KEYWORD\(AS\)|STRING/');
 
         $parser->parse();
     }
@@ -98,7 +98,7 @@ class ParserTest extends TestCase
 
         $ast = $parser->parse();
 
-        $this->assertSame('users', $ast->define->alias); // fallback alias!
+        $this->assertSame('users', $ast->define->alias);
     }
 
     public function testDefineWithInvalidAliasThrowsException(): void

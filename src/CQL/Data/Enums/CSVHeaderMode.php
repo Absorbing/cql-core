@@ -1,6 +1,6 @@
 <?php
 
-namespace CQL\Data\Enum;
+namespace CQL\Data\Enums;
 
 /**
  * Enum class for CSV header mode.

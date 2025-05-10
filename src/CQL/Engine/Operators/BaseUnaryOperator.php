@@ -5,14 +5,14 @@ namespace CQL\Engine\Operators;
 use CQL\Engine\Operators\Contracts\UnaryOperatorInterface;
 use CQL\Engine\Operators\Enum\OperandPosition;
 
-class NotOperator extends BaseUnaryOperator implements UnaryOperatorInterface
+class BaseUnaryOperator implements UnaryOperatorInterface
 {
     /**
      * {@inheritDoc}
      */
     public static function symbols(): array
     {
-        return ['NOT'];
+        return [];
     }
 
     /**
@@ -20,7 +20,7 @@ class NotOperator extends BaseUnaryOperator implements UnaryOperatorInterface
      */
     public static function evaluate(mixed $value): bool
     {
-        return (!(bool)$value);
+        return false;
     }
 
     /**
@@ -28,7 +28,7 @@ class NotOperator extends BaseUnaryOperator implements UnaryOperatorInterface
      */
     public static function precedence(): int
     {
-        return 3;
+        return 2;
     }
 
     /**
