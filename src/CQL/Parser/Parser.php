@@ -373,13 +373,25 @@ class Parser
             return $expression;
         }
 
-        if ($this->match('IDENTIFIER') || $this->match('STRING') || $this->match('NUMBER')) {
-            $token = $this->advance();
-            return $token->value;
+        if ($this->match('IDENTIFIER')) {
+            $first = $this->advance();
+
+            if ($this->match('DOT')) {
+                $this->advance();
+                $second = $this->expect('IDENTIFIER');
+                return "{$first->value}.{$second->value}";
+            }
+
+            return $first->value;
+        }
+
+        if ($this->match('STRING') || $this->match('NUMBER')) {
+            return $this->advance()->value;
         }
 
         throw new ParserException("Unexpected token: {$this->tokens[$this->position]->type} at position {$this->position}");
     }
+
 
     /**
      * Expect a token of a specific type and value.
