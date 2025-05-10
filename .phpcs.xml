@@ -1,26 +1,18 @@
 <?xml version="1.0"?>
-<ruleset name="CQL - Only Require Doc Comments">
-    <description>
-        Require doc comments for functions/methods. Ignore all formatting, spacing, and alignment.
-    </description>
+<ruleset name="CQL - Require Only Useful Doc Comments">
+    <description>Require doc comments with @param/@return, but no formatting or type name nags.</description>
 
-    <!-- Only include the FunctionComment sniff -->
     <rule ref="Squiz.Commenting.FunctionComment">
-        <!-- Disable spacing nitpicks inside docblocks -->
+        <!-- Disable annoying type-alias / formatting enforcement -->
         <exclude name="Squiz.Commenting.FunctionComment.ParamCommentSpacing"/>
         <exclude name="Squiz.Commenting.FunctionComment.SpacingAfterParamType"/>
         <exclude name="Squiz.Commenting.FunctionComment.SpacingAfterParamName"/>
+        <exclude name="Squiz.Commenting.FunctionComment.IncorrectTypeHint"/>
+        <exclude name="Squiz.Commenting.FunctionComment.IncorrectReturnTypeHint"/>
+        <exclude name="Squiz.Commenting.FunctionComment.InvalidReturn"/>
+        <exclude name="Squiz.Commenting.FunctionComment.IncorrectParamVarName"/>
+        <exclude name="Squiz.Commenting.FunctionComment.EmptyThrows"/>
     </rule>
-
-    <!-- Disable all other formatting-based sniffs -->
-    <exclude name="Squiz.Functions.FunctionDeclaration"/>
-    <exclude name="Squiz.Functions.FunctionDeclarationArgumentSpacing"/>
-    <exclude name="Squiz.Functions.MultiLineFunctionDeclaration"/>
-    <exclude name="Squiz.WhiteSpace.*"/>
-    <exclude name="Squiz.Formatting.*"/>
-    <exclude name="Generic.WhiteSpace.*"/>
-    <exclude name="PEAR.Functions.FunctionDeclaration"/>
-    <exclude name="Squiz.Commenting.FunctionComment.IncorrectTypeHint"/>
 
     <file>src</file>
 </ruleset>

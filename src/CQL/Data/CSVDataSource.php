@@ -21,6 +21,7 @@ class CSVDataSource implements DataSourceInterface
      * @param CSVHeaderMode $hasHeaders
      * @param string $delimiter
      * @param string $alias
+     * @throws DataSourceException
      */
     public function __construct(
         protected string $path,
