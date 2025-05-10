@@ -25,4 +25,4 @@ jobs:
         run: composer install --no-progress --no-scripts --prefer-dist
 
       - name: Run PHP_CodeSniffer
-        run: vendor/bin/phpcs src/
+        run: vendor/bin/phpcs
