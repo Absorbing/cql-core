@@ -20,6 +20,7 @@
     <exclude name="Squiz.Formatting.*"/>
     <exclude name="Generic.WhiteSpace.*"/>
     <exclude name="PEAR.Functions.FunctionDeclaration"/>
+    <exclude name="Squiz.Commenting.FunctionComment.IncorrectTypeHint"/>
 
     <file>src</file>
 </ruleset>
