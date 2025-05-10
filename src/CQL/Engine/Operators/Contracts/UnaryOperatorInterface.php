@@ -30,6 +30,8 @@ interface UnaryOperatorInterface extends ResolvableOperatorInterface
 
     /**
      * Get the operand position: 'left' or 'right'.
+     *
+     * @return OperandPosition
      */
     public static function operandPosition(): OperandPosition;
 }

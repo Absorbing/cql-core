@@ -9,6 +9,8 @@ class AddOperator extends BaseMathOperator implements MathOperatorInterface, Exp
 {
     /**
      * {@inheritDoc}
+     *
+     * @return array<string>
      */
     public static function symbols(): array
     {
@@ -17,6 +19,8 @@ class AddOperator extends BaseMathOperator implements MathOperatorInterface, Exp
 
     /**
      * {@inheritDoc}
+     *
+     * @return int|float
      */
     public static function evaluate(mixed $left, mixed $right): int|float
     {
@@ -25,6 +29,8 @@ class AddOperator extends BaseMathOperator implements MathOperatorInterface, Exp
 
     /**
      * {@inheritDoc}
+     *
+     * @return int
      */
     public static function precedence(): int
     {

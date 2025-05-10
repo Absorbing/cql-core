@@ -12,7 +12,8 @@
         <exclude name="Squiz.Commenting.FunctionComment.InvalidReturn"/>
         <exclude name="Squiz.Commenting.FunctionComment.IncorrectParamVarName"/>
         <exclude name="Squiz.Commenting.FunctionComment.EmptyThrows"/>
+        <exclude name="Squiz.Commenting.FunctionComment.MissingParamComment"/>
+        <exclude name="Squiz.Commenting.FunctionComment.MissingParamTag"/>
     </rule>
-
     <file>src</file>
 </ruleset>

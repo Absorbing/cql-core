@@ -43,6 +43,7 @@ class CSVDataSource implements DataSourceInterface
     /**
      * Load the data source.
      *
+     * @return void
      * @throws DataSourceException
      */
     public function load(): void

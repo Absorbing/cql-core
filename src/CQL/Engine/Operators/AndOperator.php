@@ -8,6 +8,8 @@ class AndOperator extends BaseLogicalOperator implements LogicalOperatorInterfac
 {
     /**
      * {@inheritDoc}
+     *
+     * @return array<string>
      */
     public static function symbols(): array
     {
@@ -16,6 +18,8 @@ class AndOperator extends BaseLogicalOperator implements LogicalOperatorInterfac
 
     /**
      * {@inheritDoc}
+     *
+     * @return int
      */
     public static function evaluate(mixed $left, mixed $right): bool
     {

@@ -8,6 +8,8 @@ class EqualOperator extends BaseComparisonOperator implements ComparisonOperator
 {
     /**
      * {@inheritDoc}
+     *
+     * @return array<string>
      */
     public static function symbols(): array
     {
@@ -16,6 +18,8 @@ class EqualOperator extends BaseComparisonOperator implements ComparisonOperator
 
     /**
      * {@inheritDoc}
+     *
+     * @return int
      */
     public static function evaluate(mixed $left, mixed $right): bool
     {

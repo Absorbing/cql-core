@@ -25,6 +25,8 @@ enum ComparisonOperator: string
 
     /**
      * {@inheritDoc}
+     *
+     * @return array<string>
      */
     public static function groupName(): string
     {
@@ -33,6 +35,8 @@ enum ComparisonOperator: string
 
     /**
      * {@inheritDoc}
+     *
+     * @return array<string>
      */
     public static function pattern(): string
     {

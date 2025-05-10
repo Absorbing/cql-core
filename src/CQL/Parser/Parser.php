@@ -376,6 +376,12 @@ class Parser
         return $left;
     }
 
+    /**
+     * Parse a primary expression.
+     *
+     * @return mixed
+     * @throws ParserException
+     */
     protected function parsePrimary(): mixed
     {
         if ($this->match('LPAREN')) {
@@ -508,6 +514,12 @@ class Parser
         return $token?->value === '*' && $token->type === 'MATH_OPERATOR';
     }
 
+    /**
+     * Parse an operator symbol.
+     *
+     * @return string
+     * @throws ParserException
+     */
     protected function parseOperatorSymbol(): string
     {
         $token = $this->peek();

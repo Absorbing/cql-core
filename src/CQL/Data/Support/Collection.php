@@ -76,11 +76,23 @@ class Collection implements IteratorAggregate
         return count($this->items);
     }
 
+    /**
+     * Get the first item in the Collection
+     *
+     * @return mixed
+     */
     public function first(): mixed
     {
         return reset($this->items);
     }
 
+    /**
+     * Get the last item in the Collection
+     *
+     * @template TOut
+     * @param callable(TValue, TKey): iterable<array-key, TOut> $callback
+     * @return Collection<array-key, TOut>
+     */
     public function flatMap(callable $callback): self
     {
         $results = [];

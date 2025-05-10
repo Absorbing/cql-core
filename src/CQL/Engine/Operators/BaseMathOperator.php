@@ -8,6 +8,8 @@ class BaseMathOperator implements MathOperatorInterface
 {
     /**
      * {@inheritDoc}
+     *
+     * @return array<string>
      */
     public static function symbols(): array
     {
@@ -16,6 +18,8 @@ class BaseMathOperator implements MathOperatorInterface
 
     /**
      * {@inheritDoc}
+     *
+     * @return int|float
      */
     public static function evaluate(mixed $left, mixed $right): int|float
     {
@@ -24,6 +28,8 @@ class BaseMathOperator implements MathOperatorInterface
 
     /**
      * {@inheritDoc}
+     *
+     * @return int
      */
     public static function precedence(): int
     {
