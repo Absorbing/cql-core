@@ -25,4 +25,4 @@ jobs:
         run: composer install --no-progress --no-scripts --prefer-dist
 
       - name: Run PHP_CodeSniffer
-        run: vendor/bin/phpcs --standard=Squiz --sniffs=Squiz.Commenting.FunctionComment src/
+        run: vendor/bin/phpcs src/

@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<ruleset name="CQL - Only Require Doc Comments">
+    <description>
+        Require doc comments for functions/methods. Ignore all formatting, spacing, and alignment.
+    </description>
+
+    <!-- Only include the FunctionComment sniff -->
+    <rule ref="Squiz.Commenting.FunctionComment">
+        <!-- Disable spacing nitpicks inside docblocks -->
+        <exclude name="Squiz.Commenting.FunctionComment.ParamCommentSpacing"/>
+        <exclude name="Squiz.Commenting.FunctionComment.SpacingAfterParamType"/>
+        <exclude name="Squiz.Commenting.FunctionComment.SpacingAfterParamName"/>
+    </rule>
+
+    <!-- Disable all other formatting-based sniffs -->
+    <exclude name="Squiz.Functions.FunctionDeclaration"/>
+    <exclude name="Squiz.Functions.FunctionDeclarationArgumentSpacing"/>
+    <exclude name="Squiz.Functions.MultiLineFunctionDeclaration"/>
+    <exclude name="Squiz.WhiteSpace.*"/>
+    <exclude name="Squiz.Formatting.*"/>
+    <exclude name="Generic.WhiteSpace.*"/>
+    <exclude name="PEAR.Functions.FunctionDeclaration"/>
+
+    <file>src</file>
+</ruleset>
