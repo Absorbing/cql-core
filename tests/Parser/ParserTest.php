@@ -27,11 +27,13 @@ class ParserTest extends TestCase
 
         $this->assertInstanceOf(QueryNode::class, $ast);
 
-        $this->assertInstanceOf(DefineNode::class, $ast->define);
-        $this->assertSame("'users.csv'", $ast->define->path);
-        $this->assertSame('data', $ast->define->alias);
-        $this->assertSame(['id', 'name', 'age'], $ast->define->columns);
-        $this->assertSame(CSVHeaderMode::WITH_HEADERS, $ast->define->hasHeaders);
+        $this->assertIsArray($ast->defines);
+        $this->assertCount(1, $ast->defines);
+        $this->assertInstanceOf(DefineNode::class, $ast->defines[0]);
+        $this->assertSame("'users.csv'", $ast->defines[0]->path);
+        $this->assertSame('data', $ast->defines[0]->alias);
+        $this->assertSame(['id', 'name', 'age'], $ast->defines[0]->columns);
+        $this->assertSame(CSVHeaderMode::WITH_HEADERS, $ast->defines[0]->hasHeaders);
 
         $this->assertInstanceOf(SelectNode::class, $ast->select);
         $this->assertSame(['id'], $ast->select->columns);
@@ -72,7 +74,9 @@ class ParserTest extends TestCase
 
         $ast = $parser->parse();
 
-        $this->assertSame(CSVHeaderMode::WITHOUT_HEADERS, $ast->define->hasHeaders);
+        $this->assertIsArray($ast->defines);
+        $this->assertCount(1, $ast->defines);
+        $this->assertSame(CSVHeaderMode::WITHOUT_HEADERS, $ast->defines[0]->hasHeaders);
     }
 
 
@@ -98,7 +102,9 @@ class ParserTest extends TestCase
 
         $ast = $parser->parse();
 
-        $this->assertSame('users', $ast->define->alias);
+        $this->assertIsArray($ast->defines);
+        $this->assertCount(1, $ast->defines);
+        $this->assertSame('users', $ast->defines[0]->alias);
     }
 
     public function testDefineWithInvalidAliasThrowsException(): void

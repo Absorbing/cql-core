@@ -36,6 +36,21 @@ enum Keyword: string
     case RIGHT = 'RIGHT';
     case ON = 'ON';
     case EXISTS = 'EXISTS';
+    case GROUP = 'GROUP';
+    case BY = 'BY';
+    
+    // Aggregate functions
+    case COUNT = 'COUNT';
+    case SUM = 'SUM';
+    case AVG = 'AVG';
+    case MIN = 'MIN';
+    case MAX = 'MAX';
+    
+    // Date functions
+    case DATE = 'DATE';
+    case YEAR = 'YEAR';
+    case MONTH = 'MONTH';
+    case DAY = 'DAY';
 
 //    TODO: Future implementation
 //    case INSERT = 'INSERT';

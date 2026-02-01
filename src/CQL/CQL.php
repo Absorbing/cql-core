@@ -1,0 +1,193 @@
+<?php
+
+namespace CQL;
+
+use CQL\Data\Support\Collection;
+use CQL\Engine\Interpreter;
+use CQL\Exceptions\LexerException;
+use CQL\Exceptions\ParserException;
+use CQL\Exceptions\SyntaxException;
+use CQL\Exceptions\InterpreterException;
+use CQL\Exceptions\DataSourceException;
+use CQL\Lexer\Tokenizer;
+use CQL\Parser\Parser;
+
+/**
+ * CQL - CSV Query Language
+ * 
+ * A simple facade for executing CQL queries against CSV files.
+ * 
+ * @package CQL
+ */
+class CQL
+{
+    /**
+     * Streaming mode setting
+     * - null: Automatic (default, based on file size)
+     * - true: Always stream
+     * - false: Never stream (load into memory)
+     */
+    protected ?bool $streaming = null;
+
+    /**
+     * File size threshold in bytes for automatic streaming mode
+     */
+    protected int $autoStreamingThreshold = 52428800; // 50 MB
+
+    /**
+     * Create a new CQL instance.
+     *
+     * @param array{
+     *   streaming?: bool|null,
+     *   autoStreamingThreshold?: int
+     * } $options Configuration options
+     */
+    public function __construct(array $options = [])
+    {
+        $this->streaming = $options['streaming'] ?? null;
+        $this->autoStreamingThreshold = $options['autoStreamingThreshold'] ?? 52428800;
+    }
+
+    /**
+     * Execute a CQL query and return results.
+     *
+     * @param string $query The CQL query to execute
+     * @return Collection<array-key, mixed> Query results
+     * @throws LexerException
+     * @throws ParserException
+     * @throws SyntaxException
+     * @throws InterpreterException
+     * @throws DataSourceException
+     */
+    public function execute(string $query): Collection
+    {
+        // Tokenize
+        $tokenizer = new Tokenizer($query);
+        $tokens = $tokenizer->tokenize();
+
+        // Parse
+        $parser = new Parser($tokens);
+        $ast = $parser->parse();
+
+        // Execute
+        $interpreter = new Interpreter(
+            $ast,
+            streaming: $this->streaming,
+            autoStreamingThreshold: $this->autoStreamingThreshold
+        );
+
+        return $interpreter->execute();
+    }
+
+    /**
+     * Execute a query and return results as an array.
+     *
+     * @param string $query The CQL query to execute
+     * @return array<array-key, mixed>
+     */
+    public function query(string $query): array
+    {
+        return $this->execute($query)->toArray();
+    }
+
+    /**
+     * Execute a query and return the first result.
+     *
+     * @param string $query The CQL query to execute
+     * @return mixed|null
+     */
+    public function first(string $query): mixed
+    {
+        return $this->execute($query)->first();
+    }
+
+    /**
+     * Execute a query and return the count of results.
+     *
+     * @param string $query The CQL query to execute
+     * @return int
+     */
+    public function count(string $query): int
+    {
+        return $this->execute($query)->count();
+    }
+
+    /**
+     * Set streaming mode.
+     *
+     * @param bool|null $streaming
+     * @return self
+     */
+    public function setStreaming(?bool $streaming): self
+    {
+        $this->streaming = $streaming;
+        return $this;
+    }
+
+    /**
+     * Set auto-streaming threshold.
+     *
+     * @param int $bytes File size threshold in bytes
+     * @return self
+     */
+    public function setAutoStreamingThreshold(int $bytes): self
+    {
+        $this->autoStreamingThreshold = $bytes;
+        return $this;
+    }
+
+    /**
+     * Get current streaming mode setting.
+     *
+     * @return bool|null
+     */
+    public function getStreaming(): ?bool
+    {
+        return $this->streaming;
+    }
+
+    /**
+     * Get auto-streaming threshold.
+     *
+     * @return int
+     */
+    public function getAutoStreamingThreshold(): int
+    {
+        return $this->autoStreamingThreshold;
+    }
+
+    /**
+     * Create a CQL instance with streaming enabled.
+     *
+     * @return self
+     */
+    public static function streaming(): self
+    {
+        return new self(['streaming' => true]);
+    }
+
+    /**
+     * Create a CQL instance with streaming disabled.
+     *
+     * @return self
+     */
+    public static function normal(): self
+    {
+        return new self(['streaming' => false]);
+    }
+
+    /**
+     * Create a CQL instance with automatic mode (default).
+     *
+     * @param int|null $threshold Optional custom threshold in bytes
+     * @return self
+     */
+    public static function auto(?int $threshold = null): self
+    {
+        $options = ['streaming' => null];
+        if ($threshold !== null) {
+            $options['autoStreamingThreshold'] = $threshold;
+        }
+        return new self($options);
+    }
+}

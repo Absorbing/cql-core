@@ -74,16 +74,21 @@ class Parser
         $select = $this->parseSelect();
         $from = $this->parseFrom();
         $where = null;
+        $groupBy = null;
 
         if ($this->match('KEYWORD', 'WHERE')) {
             $where = $this->parseWhere();
+        }
+
+        if ($this->match('KEYWORD', 'GROUP')) {
+            $groupBy = $this->parseGroupBy();
         }
 
         if ($this->match('SEMICOLON')) {
             $this->advance();
         }
 
-        return new QueryNode($defines, $select, $from, $where);
+        return new QueryNode($defines, $select, $from, $where, $groupBy);
     }
 
     /**
@@ -226,39 +231,46 @@ class Parser
         do {
             $token = $this->peek();
 
-            $next = $this->peek(1);
-            $after = $this->peek(2);
-
-            if (
-                $token && $next && $after &&
-                TokenTypeRegistry::isStructural($next->type) &&
-                TokenTypeRegistry::isWildcard($after)
-            ) {
-                $prefix = $token->value;
-                $this->advance(); // IDENTIFIER
-                $this->advance(); // DOT
-                $this->advance(); // *
-                $columns[] = new WildcardNode($prefix);
-            } elseif (TokenTypeRegistry::isWildcard($token)) {
-                $this->advance(); // *
-                $columns[] = new WildcardNode();
+            // Check for aggregate functions
+            if ($this->isAggregateFunction($token)) {
+                $columns[] = $this->parseFunction();
+            } elseif ($this->isDateFunction($token)) {
+                $columns[] = $this->parseFunction();
             } else {
-                $first = $this->expect('IDENTIFIER');
+                $next = $this->peek(1);
+                $after = $this->peek(2);
 
-                if ($this->match('DOT')) {
-                    $this->advance();
-                    $second = $this->expect('IDENTIFIER');
-                    $column = "{$first->value}.{$second->value}";
+                if (
+                    $token && $next && $after &&
+                    TokenTypeRegistry::isStructural($next->type) &&
+                    TokenTypeRegistry::isWildcard($after)
+                ) {
+                    $prefix = $token->value;
+                    $this->advance(); // IDENTIFIER
+                    $this->advance(); // DOT
+                    $this->advance(); // *
+                    $columns[] = new WildcardNode($prefix);
+                } elseif (TokenTypeRegistry::isWildcard($token)) {
+                    $this->advance(); // *
+                    $columns[] = new WildcardNode();
                 } else {
-                    $column = $first->value;
-                }
+                    $first = $this->expect('IDENTIFIER');
 
-                if ($this->match('KEYWORD', 'AS')) {
-                    $this->advance();
-                    $aliasToken = $this->expect('IDENTIFIER');
-                    $columns[] = new \CQL\Parser\Nodes\AliasedColumnNode($column, $aliasToken->value);
-                } else {
-                    $columns[] = $column;
+                    if ($this->match('DOT')) {
+                        $this->advance();
+                        $second = $this->expect('IDENTIFIER');
+                        $column = "{$first->value}.{$second->value}";
+                    } else {
+                        $column = $first->value;
+                    }
+
+                    if ($this->match('KEYWORD', 'AS')) {
+                        $this->advance();
+                        $aliasToken = $this->expect('IDENTIFIER');
+                        $columns[] = new \CQL\Parser\Nodes\AliasedColumnNode($column, $aliasToken->value);
+                    } else {
+                        $columns[] = $column;
+                    }
                 }
             }
 
@@ -389,6 +401,12 @@ class Parser
             $expression = $this->parseExpression();
             $this->expect('RPAREN');
             return $expression;
+        }
+
+        // Check for date functions in expressions
+        $token = $this->peek();
+        if ($this->isDateFunction($token)) {
+            return $this->parseFunction();
         }
 
         if ($this->match('IDENTIFIER')) {
@@ -534,5 +552,136 @@ class Parser
 
         $this->advance();
         return $token->value;
+    }
+
+    /**
+     * Parse a function call (aggregate or date function).
+     *
+     * @return \CQL\Parser\Nodes\FunctionNode
+     * @throws ParserException
+     */
+    protected function parseFunction(): \CQL\Parser\Nodes\FunctionNode
+    {
+        $functionToken = $this->advance(); // Consume function name
+        $functionName = strtoupper($functionToken->value);
+
+        $this->expect('LPAREN');
+
+        // Parse argument
+        $argument = null;
+        if ($this->match('MATH_OPERATOR', '*')) {
+            // COUNT(*)
+            $this->advance();
+            $argument = '*';
+        } else {
+            // Parse column name or expression
+            $token = $this->peek();
+            if ($this->match('IDENTIFIER')) {
+                $first = $this->advance();
+                if ($this->match('DOT')) {
+                    $this->advance();
+                    $second = $this->expect('IDENTIFIER');
+                    $argument = "{$first->value}.{$second->value}";
+                } else {
+                    $argument = $first->value;
+                }
+            } elseif ($this->match('STRING') || $this->match('NUMBER')) {
+                $argument = $this->advance()->value;
+            } else {
+                throw new ParserException("Expected column name or expression in function at position {$this->position}");
+            }
+        }
+
+        $this->expect('RPAREN');
+
+        // Check for alias
+        $alias = null;
+        if ($this->match('KEYWORD', 'AS')) {
+            $this->advance();
+            $aliasToken = $this->peek();
+            
+            // Allow keywords as aliases (YEAR, MONTH, DAY, etc.)
+            if ($aliasToken && ($aliasToken->type === 'IDENTIFIER' || $aliasToken->type === 'KEYWORD')) {
+                $alias = $this->advance()->value;
+            } else {
+                throw new ParserException("Expected alias name after AS at position {$this->position}");
+            }
+        }
+
+        return new \CQL\Parser\Nodes\FunctionNode($functionName, $argument, $alias);
+    }
+
+    /**
+     * Parse GROUP BY clause.
+     *
+     * @return \CQL\Parser\Nodes\GroupByNode
+     * @throws ParserException
+     */
+    protected function parseGroupBy(): \CQL\Parser\Nodes\GroupByNode
+    {
+        $this->expect('KEYWORD', 'GROUP');
+        $this->expect('KEYWORD', 'BY');
+
+        $columns = [];
+
+        do {
+            // Check if it's a function call
+            $token = $this->peek();
+            if ($this->isDateFunction($token) || $this->isAggregateFunction($token)) {
+                $func = $this->parseFunction();
+                // Store as string representation for matching
+                $columns[] = $func;
+            } else {
+                $first = $this->expect('IDENTIFIER');
+
+                if ($this->match('DOT')) {
+                    $this->advance();
+                    $second = $this->expect('IDENTIFIER');
+                    $columns[] = "{$first->value}.{$second->value}";
+                } else {
+                    $columns[] = $first->value;
+                }
+            }
+
+            if (!$this->match('COMMA')) {
+                break;
+            }
+
+            $this->advance(); // Consume comma
+        } while (true);
+
+        return new \CQL\Parser\Nodes\GroupByNode($columns);
+    }
+
+    /**
+     * Check if token is an aggregate function.
+     *
+     * @param Token|null $token
+     * @return bool
+     */
+    protected function isAggregateFunction(?Token $token): bool
+    {
+        if ($token === null || $token->type !== 'KEYWORD') {
+            return false;
+        }
+
+        $name = strtoupper($token->value);
+        return in_array($name, ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX'], true);
+    }
+
+    /**
+     * Check if token is a date function.
+     *
+     * @param Token|null $token
+     * @return bool
+     */
+    protected function isDateFunction(?Token $token): bool
+    {
+        if ($token === null || $token->type !== 'KEYWORD') {
+            return false;
+        }
+
+        $name = strtoupper($token->value);
+        return in_array($name, ['DATE', 'YEAR', 'MONTH', 'DAY'], true);
     }
 }

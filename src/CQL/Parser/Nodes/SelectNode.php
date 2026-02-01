@@ -8,7 +8,7 @@ readonly class SelectNode
     /**
      * Create a new SelectNode instance.
      *
-     * @param list<string|WildcardNode> $columns
+     * @param list<string|WildcardNode|FunctionNode|AliasedColumnNode> $columns
      * @return void
      */
     public function __construct(
