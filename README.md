@@ -7,7 +7,8 @@
 
 **CQL (CSV Query Language)** is a SQL-like query language designed specifically for querying and manipulating CSV files in PHP. It provides a familiar SQL syntax for filtering, joining, and transforming CSV data without requiring a database.
 
-> **Note**: This is v0.1.0 - a read-only query library. Write operations (INSERT, UPDATE, DELETE) are planned for future releases. See [CHANGELOG.md](CHANGELOG.md) for details.
+> [!IMPORTANT]
+> This is v0.1.0 - a read-only query library. Write operations (INSERT, UPDATE, DELETE) are planned for future releases. See [CHANGELOG.md](CHANGELOG.md) for details.
 
 ## Features
 
