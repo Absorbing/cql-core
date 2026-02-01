@@ -98,15 +98,15 @@ WHERE orders.amount > 100
 
 CQL queries follow a SQL-like syntax with specific requirements:
 
-**Required Components:**
-- `DEFINE` - At least one data source definition
-- `SELECT` - Column selection (required)
-- `FROM` - Primary data source (required)
-
-**Optional Components:**
-- `WHERE` - Filter conditions
-- `JOIN` - Join additional data sources
-- `AS` - Aliases for tables and columns
+| Component | Required | Description |
+|-----------|----------|-------------|
+| `DEFINE` | Yes | At least one data source definition |
+| `SELECT` | Yes | Column selection |
+| `FROM` | Yes | Primary data source |
+| `WHERE` | No | Filter conditions |
+| `JOIN` | No | Join additional data sources |
+| `GROUP BY` | No | Group rows for aggregation |
+| `AS` | No | Aliases for tables and columns |
 
 **Query Structure:**
 ```sql
