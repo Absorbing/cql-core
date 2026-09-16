@@ -3,6 +3,8 @@
 namespace CQL\Engine;
 
 use CQL\Data\CSVDataSource;
+use CQL\Data\SourceRegistry;
+use CQL\Data\SourceHandle;
 use CQL\Engine\Concerns\EvaluatesExpressions;
 use CQL\Engine\Operators\Registry\OperatorRegistry;
 use CQL\Exceptions\InterpreterException;
@@ -49,7 +51,8 @@ class Writer
         protected StatementNodeInterface $statement,
         protected ?bool $streamingMode = null,
         protected int $autoStreamingThreshold = 52428800,
-        array $parameters = []
+        array $parameters = [],
+        protected ?SourceRegistry $sources = null,
     ) {
         $this->parameters = $parameters;
         foreach ($statement->getDefines() as $define) {
@@ -86,9 +89,7 @@ class Writer
     {
         $source = $this->resolveSource($insert->table, streaming: true);
 
-        if (($source->getFileSize() ?: 0) > 0) {
-            $source->load();
-        }
+        $source->loadForInsert();
 
         $headers = $source->getHeaders();
         $rows = [];
@@ -199,47 +200,26 @@ class Writer
      *
      * @param string $alias
      * @param bool|null $streaming Force a streaming mode, or null to decide from settings/file size.
-     * @return CSVDataSource
+     * @return SourceHandle
      * @throws InterpreterException
      */
-    protected function resolveSource(string $alias, ?bool $streaming = null): CSVDataSource
+    protected function resolveSource(string $alias, ?bool $streaming = null): SourceHandle
     {
-        if (!isset($this->defineMap[$alias])) {
-            throw new InterpreterException("Undefined data source alias '{$alias}'");
-        }
-
-        $define = $this->defineMap[$alias];
-
-        if ($streaming === null) {
-            if ($this->streamingMode === null) {
-                $cleanPath = \CQL\Parser\Nodes\LiteralNode::decode($define->path);
-                $fileSize = file_exists($cleanPath) ? filesize($cleanPath) : 0;
-                $streaming = $fileSize !== false && $fileSize > $this->autoStreamingThreshold;
-            } else {
-                $streaming = $this->streamingMode;
-            }
-        }
-
-        $this->streaming = $streaming;
-
-        return new CSVDataSource(
-            $define->path,
-            $define->hasHeaders,
-            $define->delimiter ?? ',',
-            $define->alias,
-            $streaming
-        );
+        $this->sources ??= new SourceRegistry();
+        $source = $this->sources->resolve($alias, $this->statement->getDefines(), $streaming ?? $this->streamingMode, $this->autoStreamingThreshold);
+        $this->streaming = $source->isStreaming();
+        return $source;
     }
 
     /**
      * Read rows from a source, streaming when enabled.
      *
-     * @param CSVDataSource $source
+     * @param SourceHandle $source
      * @return iterable<array<string, string>>
      */
-    protected function readRows(CSVDataSource $source): iterable
+    protected function readRows(SourceHandle $source): iterable
     {
-        return $source->isStreaming() ? $source->streamRows() : $source->getRows();
+        return $source->rows();
     }
 
     /**

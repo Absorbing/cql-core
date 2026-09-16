@@ -55,7 +55,8 @@ class Parser
      * @return void
      */
     public function __construct(
-        protected array $tokens
+        protected array $tokens,
+        protected bool $allowMissingDefines = false,
     ) {
     }
 
@@ -79,7 +80,7 @@ class Parser
     /** @return StatementNodeInterface */
     protected function parseStatement(): StatementNodeInterface
     {
-        if (!$this->match('KEYWORD', 'DEFINE')) {
+        if (!$this->allowMissingDefines && !$this->match('KEYWORD', 'DEFINE')) {
             $type = $this->tokens[$this->position]->type ?? '';
             $value = isset($this->tokens[$this->position]->value) ? "({$this->tokens[$this->position]->value})" : '';
 
