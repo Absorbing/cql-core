@@ -4,6 +4,7 @@ namespace CQL\Data;
 
 use CQL\Data\Contracts\DataSourceInterface;
 use CQL\Data\Contracts\SchemaDataSourceInterface;
+use CQL\Data\Contracts\StreamingDataSourceInterface;
 use CQL\Data\Contracts\WritableDataSourceInterface;
 use CQL\Exceptions\DataSourceException;
 
@@ -45,7 +46,7 @@ final class SourceHandle
     /** @return iterable<array-key, array<string, mixed>> */
     public function rows(): iterable
     {
-        $rows = $this->isStreaming() ? $this->source->streamRows() : $this->source->getRows();
+        $rows = $this->source instanceof StreamingDataSourceInterface && $this->isStreaming() ? $this->source->streamRows() : $this->source->getRows();
         foreach ($rows as $key => $row) {
             if ($this->qualified) {
                 yield $key => $row;
@@ -72,7 +73,7 @@ final class SourceHandle
     /** @return bool */
     public function isStreaming(): bool
     {
-        return $this->source instanceof CSVDataSource && $this->source->isStreaming();
+        return $this->source instanceof CSVDataSource ? $this->source->isStreaming() : $this->source instanceof StreamingDataSourceInterface;
     }
 
     /** @return WritableDataSourceInterface */

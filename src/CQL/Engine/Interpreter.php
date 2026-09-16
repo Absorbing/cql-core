@@ -6,6 +6,7 @@ use CQL\Data\Support\Collection;
 use CQL\Engine\Concerns\EvaluatesExpressions;
 use CQL\Data\CSVDataSource;
 use CQL\Data\SourceRegistry;
+use CQL\Data\SourceHandle;
 use CQL\ResultColumn;
 use CQL\Parser\Nodes\QueryNode;
 use CQL\Engine\Operators\Registry\OperatorRegistry;
@@ -15,6 +16,10 @@ use CQL\Parser\Nodes\WildcardNode;
 
 class Interpreter
 {
+    protected SourceHandle $source;
+    /** @var array<int, SourceHandle> */
+    protected array $joinSources = [];
+
     /** @var array<string> */
     protected array $sourceColumns = [];
 
@@ -61,7 +66,7 @@ class Interpreter
         foreach ($source->getHeaders() ?? [] as $column) {
             $this->sourceColumns[] = $query->from->table . '.' . $column;
         }
-        $this->collection = new Collection($source->getRows());
+        $this->source = $source;
 
         foreach ($query->from->joins as $join) {
             $rightSource = $sources->resolve($join->rightAlias, $query->defines, $streaming, $autoStreamingThreshold);
@@ -70,30 +75,8 @@ class Interpreter
             foreach ($rightSource->getHeaders() ?? [] as $column) {
                 $this->sourceColumns[] = $join->rightAlias . '.' . $column;
             }
-            $rightRows = $rightSource->getRows();
-
-            $rightIndex = [];
-            foreach ($rightRows as $row) {
-                $key = $row["{$join->rightAlias}.{$join->rightKey}"] ?? $row[$join->rightKey] ?? null;
-                if ($key !== null) {
-                    $rightIndex[$key][] = $row;
-                }
-            }
-
-            $this->collection = $this->collection->flatMap(function ($leftRow) use ($join, $rightIndex) {
-                $leftKey = $leftRow["{$join->leftAlias}.{$join->leftKey}"] ?? $leftRow[$join->leftKey] ?? null;
-
-                if (!isset($rightIndex[$leftKey])) {
-                    return [];
-                }
-
-                return array_map(
-                    fn($rightRow) => array_merge($leftRow, $rightRow),
-                    $rightIndex[$leftKey]
-                );
-            });
+            $this->joinSources[] = $rightSource;
         }
-
     }
 
     /**
@@ -103,16 +86,51 @@ class Interpreter
      */
     public function execute(): Collection
     {
+        return new Collection(iterator_to_array($this->rows(), true));
+    }
+
+    /**
+     * Stream SELECT/WHERE/projection. Joins and aggregates currently buffer.
+     * @return \Generator<array-key, array<string, mixed>>
+     */
+    public function rows(): \Generator
+    {
+        $buffer = $this->query->from->joins !== [] || $this->query->groupBy !== null;
+        foreach ($this->query->select->columns as $column) {
+            if ($column instanceof \CQL\Parser\Nodes\FunctionNode && in_array(strtoupper($column->name), ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX'], true)) {
+                $buffer = true;
+            }
+        }
+        if (!$buffer) {
+            foreach ($this->source->rows() as $key => $row) {
+                if ($this->query->where === null || $this->evaluateCondition($this->query->where->condition, $row)) {
+                    yield $key => $this->projectRow($row);
+                }
+            }
+            return;
+        }
+        $this->collection = new Collection($this->source->getRows());
+        foreach ($this->query->from->joins as $index => $join) {
+            $rightIndex = [];
+            foreach ($this->joinSources[$index]->rows() as $row) {
+                $key = $row[$join->rightAlias . '.' . $join->rightKey] ?? null;
+                if ($key !== null) {
+                    $rightIndex[$key][] = $row;
+                }
+            }
+            $this->collection = $this->collection->flatMap(function ($leftRow) use ($join, $rightIndex) {
+                $key = $leftRow[$join->leftAlias . '.' . $join->leftKey] ?? null;
+                return array_map(fn($rightRow) => array_merge($leftRow, $rightRow), $rightIndex[$key] ?? []);
+            });
+        }
         if ($this->query->where !== null) {
             $this->applyWhere();
         }
-
         if ($this->query->groupBy !== null) {
             $this->applyGroupBy();
         }
-
         $this->applySelect();
-        return $this->collection;
+        yield from $this->collection;
     }
 
     /**
