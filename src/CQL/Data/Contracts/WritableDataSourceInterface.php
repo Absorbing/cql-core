@@ -22,7 +22,7 @@ interface WritableDataSourceInterface
      * Accepts any iterable (including generators) so large files can be
      * rewritten without loading every row into memory.
      *
-     * @param iterable<array<string, mixed>> $rows Un-namespaced rows
+     * @param iterable<array<string, mixed>> $rows Un-namespaced rows.
      * @return void
      */
     public function rewriteFrom(iterable $rows): void;
