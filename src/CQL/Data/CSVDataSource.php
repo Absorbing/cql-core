@@ -37,7 +37,7 @@ class CSVDataSource implements DataSourceInterface, WritableDataSourceInterface
      * @param CSVHeaderMode $hasHeaders
      * @param string $delimiter
      * @param string $alias
-     * @param bool $streaming Enable streaming mode for large files
+     * @param bool $streaming Enable streaming mode for large files.
      * @throws DataSourceException
      */
     public function __construct(
@@ -395,7 +395,7 @@ class CSVDataSource implements DataSourceInterface, WritableDataSourceInterface
      * then renamed over the original so readers never see a half-written
      * file and a failure part-way through leaves the original untouched.
      *
-     * @param iterable<array<string, mixed>> $rows Un-namespaced rows
+     * @param iterable<array<string, mixed>> $rows Un-namespaced rows.
      * @return void
      * @throws DataSourceException
      */

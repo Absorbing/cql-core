@@ -26,6 +26,8 @@ readonly class QueryNode implements StatementNodeInterface
 
     /**
      * @inheritDoc
+     *
+     * @return array<DefineNode>
      */
     public function getDefines(): array
     {
