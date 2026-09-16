@@ -20,7 +20,10 @@ class TokenTypeRegistry
      */
     public static function generatePatterns(): array
     {
-        $patterns = [];
+        $patterns = [
+            'COMMENT' => '(?<COMMENT>--[^\r\n]*|/\*.*?\*/)',
+            'NULL' => '(?<NULL>\bNULL\b)',
+        ];
 
         foreach (TokenTypeProvider::provide() as $tokenGroup) {
             if (!in_array(TokenEnum::class, class_uses($tokenGroup))) {
@@ -35,7 +38,7 @@ class TokenTypeRegistry
 
         $patternGroups = [
             'literals' => [
-                'STRING' => "'(.*?)'",
+                'STRING' => "'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"",
                 'NUMBER' => '\b\d+(\.\d+)?\b',
             ],
             'identifiers' => [

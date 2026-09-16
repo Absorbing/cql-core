@@ -7,6 +7,8 @@ use CQL\Engine\Operators\Registry\OperatorRegistry;
 use CQL\Exceptions\InterpreterException;
 use CQL\Parser\Nodes\ConditionNode;
 use CQL\Parser\Nodes\ExpressionNode;
+use CQL\Parser\Nodes\LiteralNode;
+use CQL\Parser\Nodes\ColumnReferenceNode;
 use CQL\Parser\Nodes\UnaryConditionNode;
 
 /**
@@ -73,6 +75,12 @@ trait EvaluatesExpressions
      */
     protected function evaluateOperand(mixed $operand, array $row): mixed
     {
+        if ($operand instanceof LiteralNode) {
+            return $operand->value;
+        }
+        if ($operand instanceof ColumnReferenceNode) {
+            return $this->resolveColumnValue($operand->name, $row);
+        }
         // Value lists (IN / NOT IN): evaluate each element
         if (is_array($operand)) {
             return array_map(fn($value) => $this->evaluateOperand($value, $row), $operand);
@@ -99,7 +107,7 @@ trait EvaluatesExpressions
 
             // Quoted string literal (quotes are preserved by the tokenizer)
             if (strlen($operand) >= 2 && str_starts_with($operand, "'") && str_ends_with($operand, "'")) {
-                return substr($operand, 1, -1);
+                return LiteralNode::decode($operand);
             }
 
             if (isset($row[$operand])) {
@@ -170,21 +178,30 @@ trait EvaluatesExpressions
      */
     protected function resolveColumnValue(mixed $column, array $row): mixed
     {
-        if (is_string($column)) {
-            // Direct match
-            if (isset($row[$column])) {
-                return $row[$column];
-            }
-
-            // Try to find with table prefix
+        if ($column instanceof LiteralNode) {
+            return $column->value;
+        }
+        if ($column instanceof ColumnReferenceNode) {
+            $column = $column->name;
+        }
+        if (!is_string($column)) {
+            return null;
+        }
+        if (array_key_exists($column, $row)) {
+            return $row[$column];
+        }
+        $matches = [];
+        if (!str_contains($column, '.')) {
             foreach ($row as $key => $value) {
                 if (str_ends_with($key, ".$column")) {
-                    return $value;
+                    $matches[$key] = $value;
                 }
             }
         }
-
-        return null;
+        if (count($matches) > 1) {
+            throw new InterpreterException("Ambiguous column reference '$column'. Matches: " . implode(', ', array_keys($matches)));
+        }
+        return $matches === [] ? null : reset($matches);
     }
 
     /**

@@ -44,7 +44,7 @@ class WriteParserTest extends TestCase
         $this->assertSame('users', $ast->table);
         $this->assertSame(['name', 'age'], $ast->columns);
         $this->assertCount(1, $ast->rows);
-        $this->assertSame(["'Alice'", '30'], $ast->rows[0]);
+        $this->assertSame(['Alice', 30], array_map(fn($node) => $node->value, $ast->rows[0]));
         $this->assertCount(1, $ast->getDefines());
     }
 
@@ -56,7 +56,7 @@ class WriteParserTest extends TestCase
 
         $this->assertInstanceOf(InsertNode::class, $ast);
         $this->assertCount(2, $ast->rows);
-        $this->assertSame(["'Bob'", '25'], $ast->rows[1]);
+        $this->assertSame(['Bob', 25], array_map(fn($node) => $node->value, $ast->rows[1]));
     }
 
     public function test_parse_insert_positional(): void
@@ -90,7 +90,7 @@ class WriteParserTest extends TestCase
         $this->assertCount(1, $ast->assignments);
         $this->assertInstanceOf(AssignmentNode::class, $ast->assignments[0]);
         $this->assertSame('age', $ast->assignments[0]->column);
-        $this->assertSame('31', $ast->assignments[0]->expression);
+        $this->assertSame(31, $ast->assignments[0]->expression->value);
         $this->assertNotNull($ast->where);
     }
 
