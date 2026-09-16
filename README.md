@@ -1171,3 +1171,29 @@ metadata without consuming the rows, and `streamRows()` yields unqualified
 rows. Source generators should release their resources in a finally block.
 Closing or exhausting a result releases its active generator. A partially
 consumed result should be closed explicitly when retained by the application.
+
+## Coordinated CSV writes
+
+CQL mutations acquire an exclusive lock before loading the rows or headers,
+and keep it until the mutation finishes. INSERT, UPDATE and DELETE share a
+stable `<canonical-csv-path>.cql.lock` sidecar, so replacing the CSV inode does
+not replace the lock. Relative paths and symlinks resolve to the canonical
+path. Keep lock files in place while the data source is in use; the parent
+directory must permit their creation. Hard-link aliases and external writers
+that ignore this protocol are not coordinated.
+
+UPDATE and DELETE write a temporary file in the CSV directory, check writes,
+preserve permissions and rename it into place. Exceptions discard the
+unfinished temporary file and release the lock. INSERT validates the entire
+batch before appending and restores the original file length on a caught
+write failure. Readers do not acquire transaction snapshots, and a process
+crash during append is not covered by exception rollback.
+
+`CSVDataSource::withWriteLock($operation)` can wrap direct source operations;
+use that same source instance inside the callback. A direct `rewriteFrom()`
+only protects the replacement itself: include any reads used to calculate
+its rows in the callback. Custom writable sources may implement
+`LockingWritableDataSourceInterface` to coordinate the whole CQL mutation
+using their own locking mechanism. Sources without that interface retain
+their existing concurrency behaviour. This is per-file writer coordination,
+with no multi-statement or multi-file transactions.

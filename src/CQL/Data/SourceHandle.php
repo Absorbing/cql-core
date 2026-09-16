@@ -6,6 +6,7 @@ use CQL\Data\Contracts\DataSourceInterface;
 use CQL\Data\Contracts\SchemaDataSourceInterface;
 use CQL\Data\Contracts\StreamingDataSourceInterface;
 use CQL\Data\Contracts\WritableDataSourceInterface;
+use CQL\Data\Contracts\LockingWritableDataSourceInterface;
 use CQL\Exceptions\DataSourceException;
 
 /** Resolve source capabilities and qualify row keys for the query engine. */
@@ -74,6 +75,17 @@ final class SourceHandle
     public function isStreaming(): bool
     {
         return $this->source instanceof CSVDataSource ? $this->source->isStreaming() : $this->source instanceof StreamingDataSourceInterface;
+    }
+
+    /**
+     * @template T
+     * @param callable(): T $operation Complete mutation, including its reads.
+     * @return T
+     */
+    public function withWriteLock(callable $operation): mixed
+    {
+        $source = $this->writable();
+        return $source instanceof LockingWritableDataSourceInterface ? $source->withWriteLock($operation) : $operation();
     }
 
     /** @return WritableDataSourceInterface */
