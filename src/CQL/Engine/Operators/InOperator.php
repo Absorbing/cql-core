@@ -23,7 +23,7 @@ class InOperator extends BaseComparisonOperator implements ComparisonOperatorInt
      * (e.g. '30' IN (18, 30)), consistent with the rest of the engine.
      *
      * @param mixed $left
-     * @param mixed $right A list of candidate values
+     * @param mixed $right A list of candidate values.
      * @return bool
      */
     public static function evaluate(mixed $left, mixed $right): bool
