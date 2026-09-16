@@ -302,6 +302,10 @@ class Interpreter
      */
     protected function applyGroupBy(): void
     {
+        if ($this->query->groupBy === null) {
+            return;
+        }
+
         $groupByColumns = $this->query->groupBy->columns;
         $groups = [];
 

@@ -19,7 +19,7 @@ class LessThanOrEqualOperator extends BaseComparisonOperator implements Comparis
     /**
      * {@inheritDoc}
      *
-     * @return int
+     * @return bool
      */
     public static function evaluate(mixed $left, mixed $right): bool
     {

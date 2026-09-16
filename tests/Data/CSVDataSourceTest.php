@@ -5,6 +5,7 @@ namespace Data;
 use CQL\Data\CSVDataSource;
 use CQL\Data\Enums\CSVHeaderMode;
 use CQL\Exceptions\DataSourceException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class CSVDataSourceTest extends TestCase
@@ -176,5 +177,38 @@ class CSVDataSourceTest extends TestCase
         $this->assertArrayHasKey('myalias.name', $rows[0]);
         $this->assertArrayNotHasKey('id', $rows[0]);
         $this->assertArrayNotHasKey('name', $rows[0]);
+    }
+
+    #[DataProvider('loadingModes')]
+    public function test_empty_header_file_raises_a_source_error(bool $streaming): void
+    {
+        file_put_contents($this->testFile, '');
+        $source = new CSVDataSource($this->testFile, CSVHeaderMode::WITH_HEADERS, ',', 'users', streaming: $streaming);
+
+        try {
+            $source->load();
+            $this->fail('A CSV configured with headers must contain a header row');
+        } catch (DataSourceException $error) {
+            $this->assertSame('CQL_SOURCE_ERROR', $error->errorCode);
+            $this->assertStringContainsString('Unable to read headers', $error->getMessage());
+            $this->assertSame(['path' => $this->testFile, 'alias' => 'users'], $error->context);
+            $this->assertNull($source->getHeaders());
+        }
+    }
+
+    #[DataProvider('loadingModes')]
+    public function test_blank_header_fields_are_normalised_to_strings(bool $streaming): void
+    {
+        file_put_contents($this->testFile, "\nvalue\n");
+        $source = new CSVDataSource($this->testFile, CSVHeaderMode::WITH_HEADERS, ',', 'users', streaming: $streaming);
+        $source->load();
+
+        $this->assertSame([''], $source->getHeaders());
+        $this->assertSame([['users.' => 'value']], $source->getRows());
+    }
+
+    public static function loadingModes(): array
+    {
+        return ['buffered' => [false], 'streaming' => [true]];
     }
 }

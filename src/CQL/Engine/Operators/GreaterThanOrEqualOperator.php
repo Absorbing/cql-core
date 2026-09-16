@@ -19,7 +19,7 @@ class GreaterThanOrEqualOperator extends BaseComparisonOperator implements Compa
     /**
      * {@inheritDoc}
      *
-     * @return int
+     * @return bool
      */
     public static function evaluate(mixed $left, mixed $right): bool
     {

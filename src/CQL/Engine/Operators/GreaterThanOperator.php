@@ -19,7 +19,7 @@ class GreaterThanOperator extends BaseComparisonOperator implements ComparisonOp
     /**
      * {@inheritDoc}
      *
-     * @return int
+     * @return bool
      */
     public static function evaluate(mixed $left, mixed $right): bool
     {
