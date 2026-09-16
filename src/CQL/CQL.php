@@ -44,10 +44,7 @@ class CQL
     /**
      * Create a new CQL instance.
      *
-     * @param array{
-     *   streaming?: bool|null,
-     *   autoStreamingThreshold?: int
-     * } $options Configuration options
+     * @param array{streaming?: bool|null, autoStreamingThreshold?: int} $options Configuration options.
      */
     public function __construct(array $options = [])
     {
@@ -93,7 +90,7 @@ class CQL
     /**
      * Execute a CQL query and return results.
      *
-     * @param string $query The CQL query to execute
+     * @param string $query The CQL query to execute.
      * @return Collection<array-key, mixed> Query results
      * @throws LexerException
      * @throws ParserException
@@ -164,9 +161,9 @@ class CQL
      * Execute a write statement (INSERT, UPDATE, DELETE) and return
      * the number of affected rows.
      *
-     * @param string $query The CQL statement to execute
+     * @param string $query The CQL statement to execute.
      * @return int Number of affected rows
-     * @throws InterpreterException If the statement is a SELECT query
+     * @throws InterpreterException If the statement is a SELECT query.
      */
     public function statement(string $query): int
     {
@@ -176,7 +173,7 @@ class CQL
     /**
      * Execute a query and return results as an array.
      *
-     * @param string $query The CQL query to execute
+     * @param string $query The CQL query to execute.
      * @return array<array-key, mixed>
      */
     public function query(string $query): array
@@ -187,7 +184,7 @@ class CQL
     /**
      * Execute a query and return the first result.
      *
-     * @param string $query The CQL query to execute
+     * @param string $query The CQL query to execute.
      * @return mixed|null
      */
     public function first(string $query): mixed
@@ -198,7 +195,7 @@ class CQL
     /**
      * Execute a query and return the count of results.
      *
-     * @param string $query The CQL query to execute
+     * @param string $query The CQL query to execute.
      * @return int
      */
     public function count(string $query): int
@@ -221,7 +218,7 @@ class CQL
     /**
      * Set auto-streaming threshold.
      *
-     * @param int $bytes File size threshold in bytes
+     * @param int $bytes File size threshold in bytes.
      * @return self
      */
     public function setAutoStreamingThreshold(int $bytes): self
@@ -273,7 +270,7 @@ class CQL
     /**
      * Create a CQL instance with automatic mode (default).
      *
-     * @param int|null $threshold Optional custom threshold in bytes
+     * @param int|null $threshold Optional custom threshold in bytes.
      * @return self
      */
     public static function auto(?int $threshold = null): self
