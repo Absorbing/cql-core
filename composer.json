@@ -1,6 +1,5 @@
 {
   "name": "absorbing/cql-core",
-  "version": "0.2.0",
   "description": "Core library for the C-QL CSV Query Language",
   "type": "library",
   "autoload": {
