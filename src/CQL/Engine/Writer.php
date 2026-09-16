@@ -27,6 +27,8 @@ use Generator;
  */
 class Writer
 {
+    private ?SourceHandle $activeSource = null;
+
     use EvaluatesExpressions;
 
     /**
@@ -68,14 +70,19 @@ class Writer
      */
     public function execute(): int
     {
-        return match (true) {
-            $this->statement instanceof InsertNode => $this->executeInsert($this->statement),
-            $this->statement instanceof UpdateNode => $this->executeUpdate($this->statement),
-            $this->statement instanceof DeleteNode => $this->executeDelete($this->statement),
-            default => throw new InterpreterException(
-                'Writer cannot execute statement of type ' . get_class($this->statement)
-            ),
-        };
+        if (!$this->statement instanceof InsertNode && !$this->statement instanceof UpdateNode && !$this->statement instanceof DeleteNode) {
+            throw new InterpreterException('Writer cannot execute statement of type ' . get_class($this->statement));
+        }
+        $this->activeSource = $this->resolveSource($this->statement->table, $this->statement instanceof InsertNode ? true : null);
+        try {
+            return $this->activeSource->withWriteLock(fn(): int => match (true) {
+                $this->statement instanceof InsertNode => $this->executeInsert($this->statement),
+                $this->statement instanceof UpdateNode => $this->executeUpdate($this->statement),
+                default => $this->executeDelete($this->statement),
+            });
+        } finally {
+            $this->activeSource = null;
+        }
     }
 
     /**
@@ -205,6 +212,9 @@ class Writer
      */
     protected function resolveSource(string $alias, ?bool $streaming = null): SourceHandle
     {
+        if ($this->activeSource !== null) {
+            return $this->activeSource;
+        }
         $this->sources ??= new SourceRegistry();
         $source = $this->sources->resolve($alias, $this->statement->getDefines(), $streaming ?? $this->streamingMode, $this->autoStreamingThreshold);
         $this->streaming = $source->isStreaming();
