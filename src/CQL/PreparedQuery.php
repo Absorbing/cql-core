@@ -50,6 +50,15 @@ final class PreparedQuery
     }
 
     /**
+     * @param array<string|int, mixed> $values Bindings for this execution.
+     * @return QueryResult
+     */
+    public function run(array $values = []): QueryResult
+    {
+        return $this->connection->runParsed($this->statement, $this->bind($values));
+    }
+
+    /**
      * @param array<string|int, mixed> $values Supplied bindings.
      * @return array<string|int, string|int|float|bool|null>
      */
