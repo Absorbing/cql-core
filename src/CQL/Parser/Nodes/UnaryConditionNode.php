@@ -12,7 +12,7 @@ readonly class UnaryConditionNode
      * For EXISTS the operand is an expression whose value is tested for
      * presence (non-null, non-empty).
      *
-     * @param string $operator 'NOT' or 'EXISTS'
+     * @param string $operator The 'NOT' or 'EXISTS' operator.
      * @param mixed $operand
      */
     public function __construct(
