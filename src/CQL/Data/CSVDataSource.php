@@ -3,12 +3,13 @@
 namespace CQL\Data;
 
 use CQL\Data\Contracts\DataSourceInterface;
+use CQL\Data\Contracts\SchemaDataSourceInterface;
 use CQL\Data\Contracts\WritableDataSourceInterface;
 use CQL\Data\Enums\CSVHeaderMode;
 use CQL\Exceptions\DataSourceException;
 use Generator;
 
-class CSVDataSource implements DataSourceInterface, WritableDataSourceInterface
+class CSVDataSource implements SchemaDataSourceInterface, WritableDataSourceInterface
 {
     /**
      * @var array<int, array<string, string>>

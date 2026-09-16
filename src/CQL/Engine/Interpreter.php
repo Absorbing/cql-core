@@ -5,6 +5,7 @@ namespace CQL\Engine;
 use CQL\Data\Support\Collection;
 use CQL\Engine\Concerns\EvaluatesExpressions;
 use CQL\Data\CSVDataSource;
+use CQL\Data\SourceRegistry;
 use CQL\Parser\Nodes\QueryNode;
 use CQL\Engine\Operators\Registry\OperatorRegistry;
 use CQL\Exceptions\InterpreterException;
@@ -42,61 +43,21 @@ class Interpreter
         protected QueryNode $query,
         ?bool $streaming = null,
         int $autoStreamingThreshold = 52428800,
-        array $parameters = []
+        array $parameters = [],
+        ?SourceRegistry $sources = null,
     ) {
         $this->parameters = $parameters;
         $this->autoStreamingThreshold = $autoStreamingThreshold;
 
-        $defineMap = [];
-        foreach ($query->defines as $define) {
-            $defineMap[$define->alias] = $define;
-        }
-
-        $fromAlias = $query->from->table;
-
-        if (!isset($defineMap[$fromAlias])) {
-            throw new InterpreterException("Undefined data source alias '{$fromAlias}'");
-        }
-
-        $define = $defineMap[$fromAlias];
-
-        // Determine streaming mode
-        if ($streaming === null) {
-            // Automatic mode: check file size
-            $cleanPath = \CQL\Parser\Nodes\LiteralNode::decode($define->path);
-            $fileSize = file_exists($cleanPath) ? filesize($cleanPath) : 0;
-            $this->streaming = $fileSize !== false && $fileSize > $this->autoStreamingThreshold;
-        } else {
-            // Explicit mode
-            $this->streaming = $streaming;
-        }
-
-        $source = new CSVDataSource(
-            $define->path,
-            $define->hasHeaders,
-            $define->delimiter ?? ',',
-            $define->alias,
-            $this->streaming
-        );
+        $sources ??= new SourceRegistry();
+        $source = $sources->resolve($query->from->table, $query->defines, $streaming, $autoStreamingThreshold);
+        $this->streaming = $source->isStreaming();
 
         $source->load();
         $this->collection = new Collection($source->getRows());
 
         foreach ($query->from->joins as $join) {
-            if (!isset($defineMap[$join->rightAlias])) {
-                throw new InterpreterException("JOIN target '{$join->rightAlias}' is not defined.");
-            }
-
-            $rightDefine = $defineMap[$join->rightAlias];
-            
-            // Use same streaming mode for joined tables
-            $rightSource = new CSVDataSource(
-                $rightDefine->path,
-                $rightDefine->hasHeaders,
-                $rightDefine->delimiter ?? ',',
-                $rightDefine->alias,
-                $this->streaming
-            );
+            $rightSource = $sources->resolve($join->rightAlias, $query->defines, $streaming, $autoStreamingThreshold);
 
             $rightSource->load();
             $rightRows = $rightSource->getRows();

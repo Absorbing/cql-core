@@ -3,6 +3,8 @@
 namespace CQL;
 
 use CQL\Data\Support\Collection;
+use CQL\Data\Contracts\DataSourceInterface;
+use CQL\Data\SourceRegistry;
 use CQL\Engine\Interpreter;
 use CQL\Engine\Writer;
 use CQL\Exceptions\LexerException;
@@ -24,6 +26,8 @@ use CQL\Parser\Parser;
  */
 class CQL
 {
+    protected SourceRegistry $sources;
+
     /**
      * Streaming mode setting
      * - null: Automatic (default, based on file size)
@@ -47,8 +51,43 @@ class CQL
      */
     public function __construct(array $options = [])
     {
+        $this->sources = new SourceRegistry();
         $this->streaming = $options['streaming'] ?? null;
         $this->autoStreamingThreshold = $options['autoStreamingThreshold'] ?? 52428800;
+    }
+
+    /**
+     * @param string $alias Query source name.
+     * @param string $path Literal filesystem path.
+     * @param bool $headers Whether the first row contains column names.
+     * @param string $delimiter CSV delimiter.
+     * @return self
+     */
+    public function registerCsv(string $alias, string $path, bool $headers = true, string $delimiter = ','): self
+    {
+        $this->sources->registerCsv($alias, $path, $headers, $delimiter);
+        return $this;
+    }
+
+    /**
+     * @param string $alias Query source name.
+     * @param callable(): DataSourceInterface $factory Fresh source factory using unqualified row keys.
+     * @return self
+     */
+    public function registerSource(string $alias, callable $factory): self
+    {
+        $this->sources->register($alias, $factory);
+        return $this;
+    }
+
+    /**
+     * @param string $alias Query source name.
+     * @return self
+     */
+    public function unregisterSource(string $alias): self
+    {
+        $this->sources->unregister($alias);
+        return $this;
     }
 
     /**
@@ -74,7 +113,7 @@ class CQL
      */
     public function prepare(string $query): PreparedQuery
     {
-        $parser = new Parser((new Tokenizer($query))->tokenize());
+        $parser = new Parser((new Tokenizer($query))->tokenize(), allowMissingDefines: true);
         $statement = $parser->parse();
         return new PreparedQuery($this, $statement, $parser->getParameters());
     }
@@ -96,6 +135,7 @@ class CQL
             streaming: $this->streaming,
             autoStreamingThreshold: $this->autoStreamingThreshold,
             parameters: $parameters,
+            sources: $this->sources,
         ))->execute();
     }
 
@@ -116,6 +156,7 @@ class CQL
             streamingMode: $this->streaming,
             autoStreamingThreshold: $this->autoStreamingThreshold,
             parameters: $parameters,
+            sources: $this->sources,
         ))->execute();
     }
 

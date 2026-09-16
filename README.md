@@ -1098,3 +1098,25 @@ an IN list or date function. Identifiers, file paths and SQL fragments cannot
 be bound. Missing, extra, duplicate or non-scalar bindings raise
 `ParameterException` (`CQL_PARAMETER_ERROR`) before execution. Numeric strings
 remain strings; CSV writes retain the existing string conversion conventions.
+
+## Registered data sources
+
+Register sources on a CQL instance and reference their aliases without a
+`DEFINE` prefix. Registrations do not open files and are isolated between
+instances. Registering the same alias replaces its previous factory;
+`unregisterSource($alias)` removes it. An inline DEFINE overrides the registered
+source for that statement only. Duplicate inline aliases are rejected.
+
+```php
+$cql->registerCsv('users', '/data/users.csv', headers: true);
+$cql->registerCsv('events', '/data/events.tsv', delimiter: "\t");
+$rows = $cql->query('SELECT name FROM users');
+```
+
+`registerSource($alias, $factory)` accepts a callable returning a fresh
+`DataSourceInterface` implementation on each execution. Custom sources return
+unqualified column keys; CQL adds the registered alias while executing the
+query. Implement `SchemaDataSourceInterface` to supply ordered column names,
+including for empty sources, and `WritableDataSourceInterface` to support
+mutations. Read-only sources reject write operations explicitly. CSV
+registration takes a literal filesystem path, with no SQL quoting required.
