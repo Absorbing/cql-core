@@ -1072,3 +1072,29 @@ as `CQL_LEXER_ERROR`, `CQL_PARSER_ERROR`, `CQL_SYNTAX_ERROR`,
 offset when available; and `context`, which can contain `path`, `alias`, and
 `row` for a CSV error. CSV `row` is the zero-based data-row index, excluding the
 header. Existing numeric exception codes and chained exceptions are retained.
+
+
+## Prepared queries
+
+`prepare()` parses and validates a statement without opening its CSV sources.
+Each execution uses fresh source data and a complete new set of bindings. The
+parsed AST is reused; neither query text nor parameters are interpolated.
+
+```php
+$prepared = $cql->prepare(
+    "DEFINE 'users.csv' AS users WITH HEADERS " .
+    'SELECT name FROM users WHERE age >= :minimum'
+);
+$rows = $prepared->query(['minimum' => 18]);
+$older = $prepared->query(['minimum' => 65]);
+```
+
+`execute()` returns the existing Collection; `query()` returns its array; and
+`statement()` accepts only INSERT, UPDATE or DELETE and returns affected rows.
+Named bindings accept keys with or without a leading colon. Positional `?`
+bindings use a zero-based list. Do not mix styles or reuse a named marker in
+one query. Every marker represents one scalar value or null, including inside
+an IN list or date function. Identifiers, file paths and SQL fragments cannot
+be bound. Missing, extra, duplicate or non-scalar bindings raise
+`ParameterException` (`CQL_PARAMETER_ERROR`) before execution. Numeric strings
+remain strings; CSV writes retain the existing string conversion conventions.

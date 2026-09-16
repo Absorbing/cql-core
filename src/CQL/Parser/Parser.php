@@ -8,6 +8,8 @@ use CQL\Engine\Operators\Registry\OperatorRegistry;
 use CQL\Lexer\Token;
 use CQL\Parser\Nodes\AssignmentNode;
 use CQL\Parser\Nodes\LiteralNode;
+use CQL\Parser\Nodes\ParameterNode;
+use CQL\Exceptions\ParameterException;
 use CQL\Parser\Nodes\ColumnReferenceNode;
 use CQL\Exceptions\CQLException;
 use CQL\Parser\Nodes\ConditionNode;
@@ -31,6 +33,16 @@ use CQL\Parser\Enums\JoinType;
 
 class Parser
 {
+    /** @var array<string|int, ParameterNode> */
+    protected array $parameters = [];
+    protected ?string $parameterStyle = null;
+
+    /** @return array<string|int, ParameterNode> */
+    public function getParameters(): array
+    {
+        return $this->parameters;
+    }
+
     /**
      * @var int
      */
@@ -666,6 +678,8 @@ class Parser
 
         if ($this->match('LPAREN')) {
             $saved = $this->position;
+            $savedParameters = $this->parameters;
+            $savedStyle = $this->parameterStyle;
 
             try {
                 $this->advance(); // consume (
@@ -689,6 +703,8 @@ class Parser
             }
 
             $this->position = $saved;
+            $this->parameters = $savedParameters;
+            $this->parameterStyle = $savedStyle;
         }
 
         return $this->parsePredicate();
@@ -796,6 +812,19 @@ class Parser
      */
     protected function parsePrimary(): mixed
     {
+        if ($this->match('PARAMETER')) {
+            $token = $this->advance();
+            $style = $token->value === '?' ? 'positional' : 'named';
+            if ($this->parameterStyle !== null && $this->parameterStyle !== $style) {
+                throw new ParameterException('Cannot mix named and positional parameters', position: $token->position);
+            }
+            $this->parameterStyle = $style;
+            $key = $style === 'positional' ? count($this->parameters) : substr($token->value, 1);
+            if (array_key_exists($key, $this->parameters)) {
+                throw new ParameterException("Use a unique name for each parameter occurrence: '{$key}'", position: $token->position);
+            }
+            return $this->parameters[$key] = new ParameterNode($key, $token->position);
+        }
         if ($this->match('LPAREN')) {
             $this->advance();
             $expression = $this->parseExpression();
@@ -968,8 +997,8 @@ class Parser
                 } else {
                     $argument = $first->value;
                 }
-            } elseif ($this->match('STRING') || $this->match('NUMBER')) {
-                $argument = $this->advance()->value;
+            } elseif ($this->match('STRING') || $this->match('NUMBER') || $this->match('BOOLEAN') || $this->match('NULL') || $this->match('PARAMETER')) {
+                $argument = $this->parsePrimary();
             } else {
                 throw new ParserException("Expected column name or expression in function at position {$this->position}");
             }

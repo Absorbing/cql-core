@@ -8,6 +8,8 @@ use CQL\Exceptions\InterpreterException;
 use CQL\Parser\Nodes\ConditionNode;
 use CQL\Parser\Nodes\ExpressionNode;
 use CQL\Parser\Nodes\LiteralNode;
+use CQL\Parser\Nodes\ParameterNode;
+use CQL\Exceptions\ParameterException;
 use CQL\Parser\Nodes\ColumnReferenceNode;
 use CQL\Parser\Nodes\UnaryConditionNode;
 
@@ -20,6 +22,9 @@ use CQL\Parser\Nodes\UnaryConditionNode;
  */
 trait EvaluatesExpressions
 {
+    /** @var array<string|int, string|int|float|bool|null> */
+    protected array $parameters = [];
+
     /**
      * Evaluate a condition tree node to a boolean.
      *
@@ -75,6 +80,12 @@ trait EvaluatesExpressions
      */
     protected function evaluateOperand(mixed $operand, array $row): mixed
     {
+        if ($operand instanceof ParameterNode) {
+            if (!array_key_exists($operand->key, $this->parameters)) {
+                throw new ParameterException("Missing parameter '{$operand->key}'", position: $operand->position);
+            }
+            return $this->parameters[$operand->key];
+        }
         if ($operand instanceof LiteralNode) {
             return $operand->value;
         }
@@ -178,6 +189,9 @@ trait EvaluatesExpressions
      */
     protected function resolveColumnValue(mixed $column, array $row): mixed
     {
+        if ($column instanceof ParameterNode) {
+            return $this->evaluateOperand($column, $row);
+        }
         if ($column instanceof LiteralNode) {
             return $column->value;
         }

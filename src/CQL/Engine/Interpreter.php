@@ -36,12 +36,15 @@ class Interpreter
      * @param QueryNode $query
      * @param bool|null $streaming Enable streaming mode (true/false), or null for automatic based on file size.
      * @param int $autoStreamingThreshold File size threshold in bytes for automatic streaming (default: 50MB).
+     * @param array<string|int, string|int|float|bool|null> $parameters Bound values.
      */
     public function __construct(
         protected QueryNode $query,
         ?bool $streaming = null,
-        int $autoStreamingThreshold = 52428800  // 50 MB
+        int $autoStreamingThreshold = 52428800,
+        array $parameters = []
     ) {
+        $this->parameters = $parameters;
         $this->autoStreamingThreshold = $autoStreamingThreshold;
 
         $defineMap = [];

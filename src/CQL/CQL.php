@@ -12,6 +12,7 @@ use CQL\Exceptions\InterpreterException;
 use CQL\Exceptions\DataSourceException;
 use CQL\Lexer\Tokenizer;
 use CQL\Parser\Nodes\QueryNode;
+use CQL\Parser\Nodes\Contracts\StatementNodeInterface;
 use CQL\Parser\Parser;
 
 /**
@@ -60,33 +61,59 @@ class CQL
      */
     public function execute(string $query): Collection
     {
-        // Tokenize
-        $tokenizer = new Tokenizer($query);
-        $tokens = $tokenizer->tokenize();
+        return $this->prepare($query)->execute();
+    }
 
-        // Parse
-        $parser = new Parser($tokens);
-        $ast = $parser->parse();
+    /**
+     * Parse without reading CSV rows or executing writes.
+     * @param string $query Statement template.
+     * @return PreparedQuery
+     */
+    public function prepare(string $query): PreparedQuery
+    {
+        $parser = new Parser((new Tokenizer($query))->tokenize());
+        $statement = $parser->parse();
+        return new PreparedQuery($this, $statement, $parser->getParameters());
+    }
 
-        // Write statements (INSERT / UPDATE / DELETE)
+    /**
+     * Execute an already parsed statement. Used by PreparedQuery.
+     * @internal
+     * @param StatementNodeInterface $ast Parsed statement.
+     * @param array<string|int, string|int|float|bool|null> $parameters Bound values.
+     * @return Collection<array-key, mixed>
+     */
+    public function executeParsed(StatementNodeInterface $ast, array $parameters = []): Collection
+    {
         if (!$ast instanceof QueryNode) {
-            $writer = new Writer(
-                $ast,
-                streamingMode: $this->streaming,
-                autoStreamingThreshold: $this->autoStreamingThreshold
-            );
-
-            return new Collection([['affected_rows' => $writer->execute()]]);
+            return new Collection([['affected_rows' => $this->writeParsed($ast, $parameters)]]);
         }
-
-        // Execute
-        $interpreter = new Interpreter(
+        return (new Interpreter(
             $ast,
             streaming: $this->streaming,
-            autoStreamingThreshold: $this->autoStreamingThreshold
-        );
+            autoStreamingThreshold: $this->autoStreamingThreshold,
+            parameters: $parameters,
+        ))->execute();
+    }
 
-        return $interpreter->execute();
+    /**
+     * Execute an already parsed mutation. Used by PreparedQuery.
+     * @internal
+     * @param StatementNodeInterface $ast Parsed mutation.
+     * @param array<string|int, string|int|float|bool|null> $parameters Bound values.
+     * @return int Number of affected rows.
+     */
+    public function writeParsed(StatementNodeInterface $ast, array $parameters = []): int
+    {
+        if ($ast instanceof QueryNode) {
+            throw new InterpreterException('statement() expects a write statement (INSERT, UPDATE, DELETE). Use execute() for queries.');
+        }
+        return (new Writer(
+            $ast,
+            streamingMode: $this->streaming,
+            autoStreamingThreshold: $this->autoStreamingThreshold,
+            parameters: $parameters,
+        ))->execute();
     }
 
     /**
@@ -99,25 +126,7 @@ class CQL
      */
     public function statement(string $query): int
     {
-        $tokenizer = new Tokenizer($query);
-        $tokens = $tokenizer->tokenize();
-
-        $parser = new Parser($tokens);
-        $ast = $parser->parse();
-
-        if ($ast instanceof QueryNode) {
-            throw new InterpreterException(
-                'statement() expects a write statement (INSERT, UPDATE, DELETE). Use execute() for queries.'
-            );
-        }
-
-        $writer = new Writer(
-            $ast,
-            streamingMode: $this->streaming,
-            autoStreamingThreshold: $this->autoStreamingThreshold
-        );
-
-        return $writer->execute();
+        return $this->prepare($query)->statement();
     }
 
     /**
