@@ -10,7 +10,7 @@ readonly class UpdateNode implements StatementNodeInterface
      * Create a new UpdateNode instance.
      *
      * @param array<DefineNode> $defines
-     * @param string $table Target data source alias
+     * @param string $table Target data source alias.
      * @param array<AssignmentNode> $assignments
      * @param WhereNode|null $where
      */
@@ -24,6 +24,8 @@ readonly class UpdateNode implements StatementNodeInterface
 
     /**
      * @inheritDoc
+     *
+     * @return array<DefineNode>
      */
     public function getDefines(): array
     {
