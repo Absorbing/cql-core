@@ -100,22 +100,23 @@ class CSVDataSource implements StreamingDataSourceInterface, LockingWritableData
             throw new DataSourceException("Unable to open file: {$this->path}");
         }
 
-        if ($this->hasHeaders === CSVHeaderMode::WITH_HEADERS) {
-            $this->headers = fgetcsv($handle, 0, $this->delimiter, '"', "\\");
-
-            if ($this->headers === false) {
-                fclose($handle);
-                throw new DataSourceException("Unable to read headers from file: {$this->path}");
+        try {
+            if ($this->hasHeaders === CSVHeaderMode::WITH_HEADERS) {
+                $headers = fgetcsv($handle, 0, $this->delimiter, '"', "\\");
+                if ($headers === false) {
+                    throw new DataSourceException("Unable to read headers from file: {$this->path}", context: ['path' => $this->path, 'alias' => $this->alias]);
+                }
+                $this->headers = array_map(fn($value) => (string)($value ?? ''), $headers);
+            } else {
+                // Read first row to determine column count.
+                $firstRow = fgetcsv($handle, 0, $this->delimiter, '"', "\\");
+                if ($firstRow !== false) {
+                    $this->headers = array_map(fn($pos) => "column_" . ($pos + 1), array_keys($firstRow));
+                }
             }
-        } else {
-            // Read first row to determine column count
-            $firstRow = fgetcsv($handle, 0, $this->delimiter, '"', "\\");
-            if ($firstRow !== false) {
-                $this->headers = array_map(fn($pos) => "column_" . ($pos + 1), array_keys($firstRow));
-            }
+        } finally {
+            fclose($handle);
         }
-
-        fclose($handle);
     }
 
     /**
@@ -138,7 +139,8 @@ class CSVDataSource implements StreamingDataSourceInterface, LockingWritableData
             $headers = fgetcsv($handle, 0, $this->delimiter, '"', "\\");
 
             if ($headers === false) {
-                throw new DataSourceException("Unable to read headers from file: {$this->path}");
+                fclose($handle);
+                throw new DataSourceException("Unable to read headers from file: {$this->path}", context: ['path' => $this->path, 'alias' => $this->alias]);
             }
 
             $this->headers = array_map(fn($value) => (string)($value ?? ''), $headers);

@@ -46,8 +46,8 @@ class Writer
      *
      * @param StatementNodeInterface $statement An InsertNode, UpdateNode, or DeleteNode
      * @param bool|null $streamingMode Enable streaming mode (true/false), or null for automatic based on file size
-     * @param array<string|int, string|int|float|bool|null> $parameters Bound values.
      * @param int $autoStreamingThreshold File size threshold in bytes for automatic streaming (default: 50MB)
+     * @param array<string|int, string|int|float|bool|null> $parameters Bound values.
      */
     public function __construct(
         protected StatementNodeInterface $statement,

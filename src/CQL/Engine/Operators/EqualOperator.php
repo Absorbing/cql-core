@@ -19,7 +19,7 @@ class EqualOperator extends BaseComparisonOperator implements ComparisonOperator
     /**
      * {@inheritDoc}
      *
-     * @return int
+     * @return bool
      */
     public static function evaluate(mixed $left, mixed $right): bool
     {

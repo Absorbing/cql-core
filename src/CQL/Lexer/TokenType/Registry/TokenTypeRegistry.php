@@ -9,7 +9,8 @@ use CQL\Lexer\Token;
 
 class TokenTypeRegistry
 {
-    private static $structuralTokens = [
+    /** @var list<string> */
+    private static array $structuralTokens = [
         'DOT',
     ];
 

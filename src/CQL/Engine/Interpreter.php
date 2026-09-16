@@ -45,8 +45,8 @@ class Interpreter
      *
      * @param QueryNode $query
      * @param bool|null $streaming Enable streaming mode (true/false), or null for automatic based on file size
-     * @param array<string|int, string|int|float|bool|null> $parameters Bound values.
      * @param int $autoStreamingThreshold File size threshold in bytes for automatic streaming (default: 50MB)
+     * @param array<string|int, string|int|float|bool|null> $parameters Bound values.
      */
     public function __construct(
         protected QueryNode $query,
@@ -302,6 +302,10 @@ class Interpreter
      */
     protected function applyGroupBy(): void
     {
+        if ($this->query->groupBy === null) {
+            return;
+        }
+
         $groupByColumns = $this->query->groupBy->columns;
         $groups = [];
 
