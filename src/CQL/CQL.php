@@ -142,7 +142,7 @@ class CQL
         }
         $interpreter = new Interpreter($ast, $this->streaming, $this->autoStreamingThreshold, $parameters, $this->sources);
         $columns = $interpreter->getColumns();
-        return new QueryResult($columns, $interpreter->execute());
+        return new QueryResult($columns, fn(): iterable => $interpreter->rows());
     }
 
     /**
@@ -219,7 +219,12 @@ class CQL
      */
     public function first(string $query): mixed
     {
-        return $this->execute($query)->first();
+        $result = $this->run($query);
+        try {
+            return $result->isQuery() ? ($result->fetch() ?? false) : ['affected_rows' => $result->affectedRows()];
+        } finally {
+            $result->close();
+        }
     }
 
     /**

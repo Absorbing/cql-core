@@ -1150,3 +1150,24 @@ indexes. Result cursors are independent, forward-only and cannot be rewound.
 has `isQuery() === true` and `affectedRows() === null`. Mutations have no rows
 or columns and expose the affected count, including zero. Grouped queries and
 mixed date-function/column projections retain their declared aliases.
+
+## Cursor streaming and memory
+
+With streaming enabled, `run()` reads CSV headers to describe the result but
+reads data rows only when fetched. Simple SELECT, WHERE, aliases, wildcards
+and date-function projection run one row at a time. `first()` stops at the
+first match and closes the cursor. Fetching does not read the following row
+in advance, so later CSV errors are reported when that row is requested.
+
+Use `CQL::streaming()` to force this behaviour, or use automatic mode with its
+configured file-size threshold. `CQL::normal()` still loads CSV input into
+memory. `execute()`, `query()` and `fetchAll()` deliberately materialize their
+returned rows; consume `rows()` or `fetch()` for bounded-memory output.
+Joins, GROUP BY and aggregates currently use the buffered execution path.
+They are not bounded-memory operations.
+
+Custom sources can implement `StreamingDataSourceInterface`: `load()` supplies
+metadata without consuming the rows, and `streamRows()` yields unqualified
+rows. Source generators should release their resources in a finally block.
+Closing or exhausting a result releases its active generator. A partially
+consumed result should be closed explicitly when retained by the application.

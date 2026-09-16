@@ -4,12 +4,13 @@ namespace CQL\Data;
 
 use CQL\Data\Contracts\DataSourceInterface;
 use CQL\Data\Contracts\SchemaDataSourceInterface;
+use CQL\Data\Contracts\StreamingDataSourceInterface;
 use CQL\Data\Contracts\WritableDataSourceInterface;
 use CQL\Data\Enums\CSVHeaderMode;
 use CQL\Exceptions\DataSourceException;
 use Generator;
 
-class CSVDataSource implements SchemaDataSourceInterface, WritableDataSourceInterface
+class CSVDataSource implements StreamingDataSourceInterface, WritableDataSourceInterface
 {
     /**
      * @var array<int, array<string, string>>
@@ -70,6 +71,8 @@ class CSVDataSource implements SchemaDataSourceInterface, WritableDataSourceInte
      */
     public function load(): void
     {
+        $this->rows = [];
+        $this->headers = null;
         if ($this->streaming) {
             $this->loadHeaders();
             return;
@@ -93,7 +96,7 @@ class CSVDataSource implements SchemaDataSourceInterface, WritableDataSourceInte
         }
 
         if ($this->hasHeaders === CSVHeaderMode::WITH_HEADERS) {
-            $this->headers = fgetcsv($handle, 0, $this->delimiter);
+            $this->headers = fgetcsv($handle, 0, $this->delimiter, '"', "\\");
 
             if ($this->headers === false) {
                 fclose($handle);
@@ -101,7 +104,7 @@ class CSVDataSource implements SchemaDataSourceInterface, WritableDataSourceInte
             }
         } else {
             // Read first row to determine column count
-            $firstRow = fgetcsv($handle, 0, $this->delimiter);
+            $firstRow = fgetcsv($handle, 0, $this->delimiter, '"', "\\");
             if ($firstRow !== false) {
                 $this->headers = array_map(fn($pos) => "column_" . ($pos + 1), array_keys($firstRow));
             }
@@ -127,7 +130,7 @@ class CSVDataSource implements SchemaDataSourceInterface, WritableDataSourceInte
         $headers = [];
 
         if ($this->hasHeaders === CSVHeaderMode::WITH_HEADERS) {
-            $headers = fgetcsv($handle, 0, $this->delimiter);
+            $headers = fgetcsv($handle, 0, $this->delimiter, '"', "\\");
 
             if ($headers === false) {
                 throw new DataSourceException("Unable to read headers from file: {$this->path}");
@@ -138,7 +141,7 @@ class CSVDataSource implements SchemaDataSourceInterface, WritableDataSourceInte
 
         $index = 0;
 
-        while (($row = fgetcsv($handle, 0, $this->delimiter)) !== false) {
+        while (($row = fgetcsv($handle, 0, $this->delimiter, '"', "\\")) !== false) {
             if ($this->hasHeaders === CSVHeaderMode::WITHOUT_HEADERS && $index === 0) {
                 $headers = array_map(fn($pos) => "column_" . ($pos + 1), array_keys($row));
                 $this->headers = $headers;
@@ -193,47 +196,31 @@ class CSVDataSource implements SchemaDataSourceInterface, WritableDataSourceInte
     public function streamRows(): Generator
     {
         $handle = fopen($this->path, 'r');
-
         if ($handle === false) {
-            throw new DataSourceException("Unable to open file: {$this->path}");
+            throw new DataSourceException("Unable to open file: {$this->path}", context: ['path' => $this->path, 'alias' => $this->alias]);
         }
-
-        // Skip headers if present
-        if ($this->hasHeaders === CSVHeaderMode::WITH_HEADERS) {
-            fgetcsv($handle, 0, $this->delimiter);
+        try {
+            if ($this->hasHeaders === CSVHeaderMode::WITH_HEADERS) {
+                fgetcsv($handle, 0, $this->delimiter, '"', "\\");
+            }
+            $index = 0;
+            while (($row = fgetcsv($handle, 0, $this->delimiter, '"', "\\")) !== false) {
+                if ($this->headers === null) {
+                    throw new DataSourceException('Headers not loaded. Call load() first.');
+                }
+                if (count($this->headers) !== count($row)) {
+                    throw new DataSourceException("Row column count mismatch at row {$index}", context: ['path' => $this->path, 'alias' => $this->alias, 'row' => $index]);
+                }
+                $namespaced = [];
+                foreach ($this->headers as $column => $name) {
+                    $namespaced[$this->alias . '.' . $name] = (string)($row[$column] ?? '');
+                }
+                yield $index => $namespaced;
+                $index++;
+            }
+        } finally {
+            fclose($handle);
         }
-
-        $index = 0;
-
-        while (($row = fgetcsv($handle, 0, $this->delimiter)) !== false) {
-            if ($this->headers === null) {
-                throw new DataSourceException("Headers not loaded. Call load() first.");
-            }
-
-            if (count($this->headers) !== count($row)) {
-                fclose($handle);
-                throw new DataSourceException("Row column count mismatch at row {$index}", context: ['path' => $this->path, 'alias' => $this->alias, 'row' => $index]);
-            }
-
-            $row = array_map(fn($value) => (string)($value ?? ''), $row);
-            $headers = array_map(fn($value) => (string)($value ?? ''), $this->headers);
-            $combined = array_combine($headers, $row);
-
-            if (!$combined) {
-                fclose($handle);
-                throw new DataSourceException("Failed to combine headers and row at index {$index}");
-            }
-
-            $namespacedRow = [];
-            foreach ($combined as $key => $value) {
-                $namespacedRow["{$this->alias}.{$key}"] = $value;
-            }
-
-            yield $namespacedRow;
-            $index++;
-        }
-
-        fclose($handle);
     }
 
     /**
