@@ -6,6 +6,7 @@ use CQL\Data\Support\Collection;
 use CQL\Engine\Concerns\EvaluatesExpressions;
 use CQL\Data\CSVDataSource;
 use CQL\Data\SourceRegistry;
+use CQL\ResultColumn;
 use CQL\Parser\Nodes\QueryNode;
 use CQL\Engine\Operators\Registry\OperatorRegistry;
 use CQL\Exceptions\InterpreterException;
@@ -14,6 +15,9 @@ use CQL\Parser\Nodes\WildcardNode;
 
 class Interpreter
 {
+    /** @var array<string> */
+    protected array $sourceColumns = [];
+
     use EvaluatesExpressions;
 
     /**
@@ -54,12 +58,18 @@ class Interpreter
         $this->streaming = $source->isStreaming();
 
         $source->load();
+        foreach ($source->getHeaders() ?? [] as $column) {
+            $this->sourceColumns[] = $query->from->table . '.' . $column;
+        }
         $this->collection = new Collection($source->getRows());
 
         foreach ($query->from->joins as $join) {
             $rightSource = $sources->resolve($join->rightAlias, $query->defines, $streaming, $autoStreamingThreshold);
 
             $rightSource->load();
+            foreach ($rightSource->getHeaders() ?? [] as $column) {
+                $this->sourceColumns[] = $join->rightAlias . '.' . $column;
+            }
             $rightRows = $rightSource->getRows();
 
             $rightIndex = [];
@@ -106,6 +116,69 @@ class Interpreter
     }
 
     /**
+     * Describe projected columns from source schemas, including empty results.
+     * @return array<ResultColumn>
+     */
+    public function getColumns(): array
+    {
+        $columns = [];
+        $hasAggregates = false;
+        foreach ($this->query->select->columns as $column) {
+            if ($column instanceof \CQL\Parser\Nodes\FunctionNode && in_array(strtoupper($column->name), ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX'], true)) {
+                $hasAggregates = true;
+            }
+        }
+        foreach ($this->query->select->columns as $column) {
+            if ($column instanceof \CQL\Parser\Nodes\FunctionNode) {
+                $groupFunction = false;
+                foreach ($this->query->groupBy->columns ?? [] as $group) {
+                    if ($group instanceof \CQL\Parser\Nodes\FunctionNode && $group->name === $column->name && $group->argument == $column->argument) {
+                        $groupFunction = true;
+                    }
+                }
+                $default = strtolower($column->name);
+                if (!$groupFunction && ($hasAggregates || $this->query->groupBy !== null)) {
+                    $default .= '_' . ($column->argument === '*' ? 'all' : $column->argument);
+                }
+                $columns[] = new ResultColumn($column->alias ?? $default);
+                continue;
+            }
+            if ($hasAggregates && $this->query->groupBy === null) {
+                continue;
+            }
+            if ($column instanceof WildcardNode) {
+                foreach ($this->sourceColumns as $key) {
+                    if ($column->prefix !== null && !str_starts_with($key, $column->prefix . '.')) {
+                        continue;
+                    }
+                    $short = $this->getShortColumnName($key);
+                    $matches = array_filter($this->sourceColumns, fn($candidate) => str_ends_with($candidate, '.' . $short));
+                    $name = $column->prefix !== null || count($matches) > 1 ? $key : $short;
+                    [$alias, $field] = explode('.', $key, 2);
+                    $columns[] = new ResultColumn($name, $alias, $field);
+                }
+                continue;
+            }
+            $reference = $column instanceof \CQL\Parser\Nodes\AliasedColumnNode ? $column->expression : $column;
+            $name = $column instanceof \CQL\Parser\Nodes\AliasedColumnNode ? $column->alias : $reference;
+            $matches = array_values(array_filter($this->sourceColumns, fn($key) => $key === $reference || (!str_contains($reference, '.') && str_ends_with($key, '.' . $reference))));
+            if (count($matches) > 1) {
+                throw new InterpreterException("Ambiguous result column '{$reference}'");
+            }
+            if ($matches === [] && $this->sourceColumns !== []) {
+                throw new InterpreterException("Unknown result column '{$reference}'");
+            }
+            [$alias, $field] = $matches === [] ? [null, null] : explode('.', $matches[0], 2);
+            $columns[] = new ResultColumn($name, $alias, $field);
+        }
+        $names = array_column($columns, 'name');
+        if (count(array_unique($names)) !== count($names)) {
+            throw new InterpreterException('Duplicate result column names; use unique AS aliases');
+        }
+        return $columns;
+    }
+
+    /**
      * Apply the WHERE clause.
      *
      * @return void
@@ -130,137 +203,58 @@ class Interpreter
      */
     protected function applySelect(): void
     {
-        $columns = $this->query->select->columns;
-        
-        // Check if we have aggregate functions
-        $hasAggregates = false;
-        foreach ($columns as $column) {
-            if ($column instanceof \CQL\Parser\Nodes\FunctionNode) {
-                $funcName = strtoupper($column->name);
-                if (in_array($funcName, ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX'], true)) {
-                    $hasAggregates = true;
-                    break;
+        if ($this->query->groupBy === null) {
+            foreach ($this->query->select->columns as $column) {
+                if ($column instanceof \CQL\Parser\Nodes\FunctionNode && in_array(strtoupper($column->name), ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX'], true)) {
+                    $this->applyAggregatesWithoutGroupBy();
+                    return;
                 }
             }
         }
+        $this->collection = $this->collection->map(fn(array $row): array => $this->projectRow($row));
+    }
 
-        // If we have aggregates but no GROUP BY, aggregate the entire dataset
-        if ($hasAggregates && $this->query->groupBy === null) {
-            $this->applyAggregatesWithoutGroupBy();
-            return;
-        }
-
-        // Check if we have date functions without aggregates
-        $hasDateFunctions = false;
-        foreach ($columns as $column) {
+    /**
+     * Project one row using the same rules for buffered and cursor results.
+     * @param array<string, mixed> $row Input row.
+     * @return array<string, mixed>
+     */
+    protected function projectRow(array $row): array
+    {
+        $result = [];
+        foreach ($this->query->select->columns as $column) {
             if ($column instanceof \CQL\Parser\Nodes\FunctionNode) {
-                $funcName = strtoupper($column->name);
-                if (in_array($funcName, ['YEAR', 'MONTH', 'DAY', 'DATE'], true)) {
-                    $hasDateFunctions = true;
-                    break;
-                }
-            }
-        }
-
-        // If we have date functions, evaluate them row by row
-        if ($hasDateFunctions && !$hasAggregates) {
-            $this->collection = $this->collection->map(function ($row) use ($columns) {
-                $result = [];
-                
-                foreach ($columns as $column) {
-                    if ($column instanceof \CQL\Parser\Nodes\FunctionNode) {
-                        $value = $this->resolveColumnValue($column->argument, $row);
-                        $funcResult = $this->evaluateDateFunction(strtoupper($column->name), $value);
-                        $outputKey = $column->alias ?? strtolower($column->name);
-                        $result[$outputKey] = $funcResult;
-                    } elseif (is_string($column)) {
-                        // Regular column
-                        $value = $this->resolveColumnValue($column, $row);
-                        $result[$column] = $value;
+                if ($this->query->groupBy !== null) {
+                    $name = $column->alias ?? strtolower($column->name) . '_' . ($column->argument === '*' ? 'all' : $column->argument);
+                    foreach ($this->query->groupBy->columns as $group) {
+                        if ($group instanceof \CQL\Parser\Nodes\FunctionNode && $group->name === $column->name && $group->argument == $column->argument) {
+                            $name = $column->alias ?? strtolower($column->name);
+                        }
                     }
+                    $result[$name] = $row[$name] ?? null;
+                } else {
+                    $name = $column->alias ?? strtolower($column->name);
+                    $result[$name] = $this->evaluateDateFunction(strtoupper($column->name), $this->resolveColumnValue($column->argument, $row));
                 }
-                
-                return $result;
-            });
-            return;
-        }
-
-        // Regular column selection
-        $keyMap = [];
-
-        $allKeys = [];
-        foreach ($this->collection as $row) {
-            foreach (array_keys($row) as $key) {
-                $allKeys[$key] = true;
-            }
-        }
-        $allKeys = array_keys($allKeys);
-
-        foreach ($columns as $column) {
-            if ($column instanceof \CQL\Parser\Nodes\FunctionNode) {
-                // Function results are already in the row from GROUP BY
-                $outputKey = $column->alias ?? strtolower($column->name) . '_' . ($column->argument === '*' ? 'all' : $column->argument);
-                $keyMap[] = [$outputKey, $outputKey];
                 continue;
             }
-
-            if ($column instanceof \CQL\Parser\Nodes\AliasedColumnNode) {
-                foreach ($allKeys as $fullKey) {
-                    if ($fullKey === $column->expression) {
-                        $keyMap[] = [$fullKey, $column->alias];
-                    } elseif (str_ends_with($fullKey, ".{$column->expression}")) {
-                        $keyMap[] = [$fullKey, $column->alias];
-                    }
-                }
-            }
-
-            if (is_string($column)) {
-                foreach ($allKeys as $fullKey) {
-                    if ($fullKey === $column) {
-                        $keyMap[] = [$fullKey, $fullKey];
-                    } elseif (str_ends_with($fullKey, ".$column")) {
-                        $keyMap[] = [$fullKey, $column];
-                    }
-                }
-            }
-
             if ($column instanceof WildcardNode) {
-                foreach ($allKeys as $fullKey) {
-                    if ($column->prefix === null) {
-                        $shortKey = substr($fullKey, strrpos($fullKey, '.') + 1);
-
-                        $count = 0;
-                        foreach ($allKeys as $otherKey) {
-                            if (str_ends_with($otherKey, ".$shortKey")) {
-                                $count++;
-                            }
-                        }
-
-                        if ($count > 1) {
-                            $keyMap[] = [$fullKey, $fullKey];
-                        } else {
-                            $keyMap[] = [$fullKey, $shortKey];
-                        }
-                    } elseif (str_starts_with($fullKey, "{$column->prefix}.")) {
-                        $keyMap[] = [$fullKey, $fullKey];
+                foreach ($row as $key => $value) {
+                    if ($column->prefix !== null && !str_starts_with($key, $column->prefix . '.')) {
+                        continue;
                     }
+                    $short = $this->getShortColumnName($key);
+                    $matches = array_filter($this->sourceColumns, fn($candidate) => str_ends_with($candidate, '.' . $short));
+                    $result[$column->prefix !== null || count($matches) > 1 ? $key : $short] = $value;
                 }
+                continue;
             }
+            $reference = $column instanceof \CQL\Parser\Nodes\AliasedColumnNode ? $column->expression : $column;
+            $name = $column instanceof \CQL\Parser\Nodes\AliasedColumnNode ? $column->alias : $reference;
+            $lookup = $this->query->groupBy !== null ? $this->getShortColumnName($reference) : $reference;
+            $result[$name] = $this->resolveColumnValue($lookup, $row);
         }
-
-        if (empty($keyMap)) {
-            return;
-        }
-
-        $this->collection = $this->collection->map(function ($row) use ($keyMap) {
-            $mapped = [];
-            foreach ($keyMap as [$original, $output]) {
-                if (array_key_exists($original, $row)) {
-                    $mapped[$output] = $row[$original];
-                }
-            }
-            return $mapped;
-        });
+        return $result;
     }
 
     /**

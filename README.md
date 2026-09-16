@@ -1120,3 +1120,33 @@ query. Implement `SchemaDataSourceInterface` to supply ordered column names,
 including for empty sources, and `WritableDataSourceInterface` to support
 mutations. Read-only sources reject write operations explicitly. CSV
 registration takes a literal filesystem path, with no SQL quoting required.
+
+## Structured results
+
+Use `run($query, $parameters = [])` or `$prepared->run($parameters)` for a
+`QueryResult`. The existing `execute()`, `query()` and `statement()` return
+types remain unchanged.
+
+```php
+$result = $cql->run('SELECT name AS person FROM users WHERE age >= ?', [18]);
+$columns = $result->columns(); // Ordered ResultColumn objects
+foreach ($result->rows() as $row) {
+    echo $row['person'];
+}
+$result->close();
+```
+
+Each column exposes `name`, `sourceAlias` and `sourceColumn`. Computed values
+have no source field. Metadata is available even when no rows match; wildcard
+metadata for an empty custom source requires `SchemaDataSourceInterface`.
+Output names must be unique in this API; use explicit AS aliases to distinguish
+columns. Ambiguous and unknown projected fields are rejected when the schema
+is known.
+
+`fetch()` returns the next associative row or null at the end. `rows()` and
+`fetchAll()` consume the remaining cursor and use consecutive numeric row
+indexes. Result cursors are independent, forward-only and cannot be rewound.
+`close()` releases the remaining data and is safe to call repeatedly. A SELECT
+has `isQuery() === true` and `affectedRows() === null`. Mutations have no rows
+or columns and expose the affected count, including zero. Grouped queries and
+mixed date-function/column projections retain their declared aliases.

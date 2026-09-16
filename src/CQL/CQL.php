@@ -116,6 +116,33 @@ class CQL
     }
 
     /**
+     * Execute with metadata and a forward-only result cursor.
+     * @param string $query Statement template.
+     * @param array<string|int, mixed> $parameters Bound values.
+     * @return QueryResult
+     */
+    public function run(string $query, array $parameters = []): QueryResult
+    {
+        return $this->prepare($query)->run($parameters);
+    }
+
+    /**
+     * @internal
+     * @param StatementNodeInterface $ast Parsed statement.
+     * @param array<string|int, string|int|float|bool|null> $parameters Bound values.
+     * @return QueryResult
+     */
+    public function runParsed(StatementNodeInterface $ast, array $parameters = []): QueryResult
+    {
+        if (!$ast instanceof QueryNode) {
+            return new QueryResult([], affectedRows: $this->writeParsed($ast, $parameters));
+        }
+        $interpreter = new Interpreter($ast, $this->streaming, $this->autoStreamingThreshold, $parameters, $this->sources);
+        $columns = $interpreter->getColumns();
+        return new QueryResult($columns, $interpreter->execute());
+    }
+
+    /**
      * Execute an already parsed statement. Used by PreparedQuery.
      * @internal
      * @param StatementNodeInterface $ast Parsed statement.
