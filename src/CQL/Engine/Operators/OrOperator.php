@@ -13,7 +13,7 @@ class OrOperator extends BaseLogicalOperator implements LogicalOperatorInterface
      */
     public static function symbols(): array
     {
-        return ['NOT'];
+        return ['OR'];
     }
 
     /**

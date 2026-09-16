@@ -6,11 +6,17 @@ use CQL\Data\Enums\CSVHeaderMode;
 use CQL\Engine\Operators\Contracts\ExpressionOperatorInterface;
 use CQL\Engine\Operators\Registry\OperatorRegistry;
 use CQL\Lexer\Token;
+use CQL\Parser\Nodes\AssignmentNode;
 use CQL\Parser\Nodes\ConditionNode;
+use CQL\Parser\Nodes\Contracts\StatementNodeInterface;
 use CQL\Parser\Nodes\DefineNode;
+use CQL\Parser\Nodes\DeleteNode;
 use CQL\Parser\Nodes\FromNode;
+use CQL\Parser\Nodes\InsertNode;
 use CQL\Parser\Nodes\JoinNode;
 use CQL\Parser\Nodes\QueryNode;
+use CQL\Parser\Nodes\UnaryConditionNode;
+use CQL\Parser\Nodes\UpdateNode;
 use CQL\Parser\Nodes\SelectNode;
 use CQL\Parser\Nodes\WhereNode;
 use CQL\Parser\Nodes\ExpressionNode;
@@ -39,12 +45,12 @@ class Parser
     }
 
     /**
-     * Parse the query and return a QueryNode
+     * Parse the statement and return the corresponding node.
      *
-     * @return QueryNode
+     * @return StatementNodeInterface
      * @throws SyntaxException
      */
-    public function parse(): QueryNode
+    public function parse(): StatementNodeInterface
     {
         if (!$this->match('KEYWORD', 'DEFINE')) {
             $type = $this->tokens[$this->position]->type ?? '';
@@ -55,15 +61,54 @@ class Parser
             );
         }
 
-        return $this->parseQuery();
+        $defines = $this->parseDefines();
+
+        if ($this->match('KEYWORD', 'INSERT')) {
+            return $this->finalize($this->parseInsert($defines));
+        }
+
+        if ($this->match('KEYWORD', 'UPDATE')) {
+            return $this->finalize($this->parseUpdate($defines));
+        }
+
+        if ($this->match('KEYWORD', 'DELETE')) {
+            return $this->finalize($this->parseDelete($defines));
+        }
+
+        return $this->finalize($this->parseQuery($defines));
     }
 
     /**
-     * Parse the query.
+     * Ensure every token was consumed by the statement.
      *
-     * @return QueryNode
+     * Trailing tokens indicate a malformed statement that would otherwise
+     * be silently ignored (e.g. "WHERE age NOT 18" parsing as a bare
+     * truthiness test on age and dropping the rest).
+     *
+     * @template T of StatementNodeInterface
+     * @param T $statement
+     * @return T
+     * @throws SyntaxException
      */
-    protected function parseQuery(): QueryNode
+    protected function finalize(StatementNodeInterface $statement): StatementNodeInterface
+    {
+        $token = $this->peek();
+
+        if ($token !== null) {
+            throw new SyntaxException(
+                "Unexpected token {$token->type}('{$token->value}') after end of statement at position {$this->position}"
+            );
+        }
+
+        return $statement;
+    }
+
+    /**
+     * Parse consecutive DEFINE statements.
+     *
+     * @return array<DefineNode>
+     */
+    protected function parseDefines(): array
     {
         $defines = [];
 
@@ -71,6 +116,17 @@ class Parser
             $defines[] = $this->parseDefine();
         }
 
+        return $defines;
+    }
+
+    /**
+     * Parse a SELECT query.
+     *
+     * @param array<DefineNode> $defines
+     * @return QueryNode
+     */
+    protected function parseQuery(array $defines): QueryNode
+    {
         $select = $this->parseSelect();
         $from = $this->parseFrom();
         $where = null;
@@ -89,6 +145,178 @@ class Parser
         }
 
         return new QueryNode($defines, $select, $from, $where, $groupBy);
+    }
+
+    /**
+     * Parse an INSERT statement.
+     *
+     * INSERT INTO alias [(col, col, ...)] VALUES (v, v, ...) [, (v, v, ...)]
+     *
+     * @param array<DefineNode> $defines
+     * @return InsertNode
+     * @throws ParserException
+     */
+    protected function parseInsert(array $defines): InsertNode
+    {
+        $this->expect('KEYWORD', 'INSERT');
+        $this->expect('KEYWORD', 'INTO');
+
+        $table = $this->expect('IDENTIFIER')->value;
+
+        $columns = [];
+
+        if ($this->match('LPAREN')) {
+            $this->advance();
+
+            do {
+                $token = $this->peek();
+
+                if (!$token || !in_array($token->type, ['IDENTIFIER', 'STRING'], true)) {
+                    $type = $token->type ?? 'EOF';
+                    throw new SyntaxException("Expected column name, got {$type} at position {$this->position}");
+                }
+
+                $columns[] = trim($this->advance()->value, "'");
+
+                if (!$this->match('COMMA')) {
+                    break;
+                }
+
+                $this->advance();
+            } while (true);
+
+            $this->expect('RPAREN');
+        }
+
+        $this->expect('KEYWORD', 'VALUES');
+
+        $rows = [];
+
+        do {
+            $this->expect('LPAREN');
+
+            $values = [];
+
+            do {
+                $values[] = $this->parseExpression();
+
+                if (!$this->match('COMMA')) {
+                    break;
+                }
+
+                $this->advance();
+            } while (true);
+
+            $this->expect('RPAREN');
+
+            if ($columns !== [] && count($values) !== count($columns)) {
+                throw new SyntaxException(
+                    sprintf(
+                        'VALUES tuple has %d value(s) but %d column(s) were specified at position %d',
+                        count($values),
+                        count($columns),
+                        $this->position
+                    )
+                );
+            }
+
+            $rows[] = $values;
+
+            if (!$this->match('COMMA')) {
+                break;
+            }
+
+            $this->advance();
+        } while (true);
+
+        if ($this->match('SEMICOLON')) {
+            $this->advance();
+        }
+
+        return new InsertNode($defines, $table, $columns, $rows);
+    }
+
+    /**
+     * Parse an UPDATE statement.
+     *
+     * UPDATE alias SET col = expr [, col = expr] [WHERE condition]
+     *
+     * @param array<DefineNode> $defines
+     * @return UpdateNode
+     * @throws ParserException
+     */
+    protected function parseUpdate(array $defines): UpdateNode
+    {
+        $this->expect('KEYWORD', 'UPDATE');
+
+        $table = $this->expect('IDENTIFIER')->value;
+
+        $this->expect('KEYWORD', 'SET');
+
+        $assignments = [];
+
+        do {
+            $first = $this->expect('IDENTIFIER');
+
+            if ($this->match('DOT')) {
+                $this->advance();
+                $second = $this->expect('IDENTIFIER');
+                $column = "{$first->value}.{$second->value}";
+            } else {
+                $column = $first->value;
+            }
+
+            $this->expect('COMPARISON_OPERATOR', '=');
+
+            $assignments[] = new AssignmentNode($column, $this->parseExpression());
+
+            if (!$this->match('COMMA')) {
+                break;
+            }
+
+            $this->advance();
+        } while (true);
+
+        $where = null;
+
+        if ($this->match('KEYWORD', 'WHERE')) {
+            $where = $this->parseWhere();
+        }
+
+        if ($this->match('SEMICOLON')) {
+            $this->advance();
+        }
+
+        return new UpdateNode($defines, $table, $assignments, $where);
+    }
+
+    /**
+     * Parse a DELETE statement.
+     *
+     * DELETE FROM alias [WHERE condition]
+     *
+     * @param array<DefineNode> $defines
+     * @return DeleteNode
+     * @throws ParserException
+     */
+    protected function parseDelete(array $defines): DeleteNode
+    {
+        $this->expect('KEYWORD', 'DELETE');
+        $this->expect('KEYWORD', 'FROM');
+
+        $table = $this->expect('IDENTIFIER')->value;
+
+        $where = null;
+
+        if ($this->match('KEYWORD', 'WHERE')) {
+            $where = $this->parseWhere();
+        }
+
+        if ($this->match('SEMICOLON')) {
+            $this->advance();
+        }
+
+        return new DeleteNode($defines, $table, $where);
     }
 
     /**
@@ -338,7 +566,14 @@ class Parser
     }
 
     /**
-     * Parse the WHERE statement.
+     * Parse the WHERE clause into a condition tree.
+     *
+     * Grammar (standard SQL precedence, lowest first):
+     *   or_cond   := and_cond (OR and_cond)*
+     *   and_cond  := not_cond (AND not_cond)*
+     *   not_cond  := NOT not_cond | primary
+     *   primary   := '(' or_cond ')' | EXISTS expr | predicate
+     *   predicate := expr [comparison_op expr | [NOT] IN '(' value, ... ')']
      *
      * @return WhereNode
      */
@@ -346,13 +581,160 @@ class Parser
     {
         $this->expect('KEYWORD', 'WHERE');
 
-        $left = $this->parseExpression();
-        $operator = $this->parseOperatorSymbol();
-        $right = $this->parseExpression();
+        return new WhereNode($this->parseOrCondition());
+    }
 
-        return new WhereNode(
-            new ConditionNode($left, $operator, $right)
-        );
+    /**
+     * Parse OR-combined conditions (lowest precedence).
+     *
+     * @return mixed
+     */
+    protected function parseOrCondition(): mixed
+    {
+        $left = $this->parseAndCondition();
+
+        while ($this->match('KEYWORD', 'OR')) {
+            $this->advance();
+            $left = new ConditionNode($left, 'OR', $this->parseAndCondition());
+        }
+
+        return $left;
+    }
+
+    /**
+     * Parse AND-combined conditions.
+     *
+     * @return mixed
+     */
+    protected function parseAndCondition(): mixed
+    {
+        $left = $this->parseNotCondition();
+
+        while ($this->match('KEYWORD', 'AND')) {
+            $this->advance();
+            $left = new ConditionNode($left, 'AND', $this->parseNotCondition());
+        }
+
+        return $left;
+    }
+
+    /**
+     * Parse an optionally negated condition.
+     *
+     * @return mixed
+     */
+    protected function parseNotCondition(): mixed
+    {
+        if ($this->match('KEYWORD', 'NOT')) {
+            $this->advance();
+            return new UnaryConditionNode('NOT', $this->parseNotCondition());
+        }
+
+        return $this->parsePrimaryCondition();
+    }
+
+    /**
+     * Parse a primary condition: a parenthesised condition group, an
+     * EXISTS test, or a comparison predicate.
+     *
+     * @return mixed
+     */
+    protected function parsePrimaryCondition(): mixed
+    {
+        if ($this->match('KEYWORD', 'EXISTS')) {
+            $this->advance();
+            return new UnaryConditionNode('EXISTS', $this->parseExpression());
+        }
+
+        if ($this->match('LPAREN')) {
+            $saved = $this->position;
+
+            try {
+                $this->advance(); // consume (
+                $condition = $this->parseOrCondition();
+                $this->expect('RPAREN');
+
+                // If the parenthesised group is followed by a comparison or
+                // expression operator, the parentheses were grouping an
+                // expression, e.g. (a + b) > 5 - rewind and parse as a
+                // predicate instead.
+                $next = $this->peek();
+
+                if (
+                    $next === null ||
+                    ($next->type !== 'COMPARISON_OPERATOR' && !$this->isExpressionOperator($next))
+                ) {
+                    return $condition;
+                }
+            } catch (ParserException | SyntaxException) {
+                // Not a condition group - fall through to predicate parsing
+            }
+
+            $this->position = $saved;
+        }
+
+        return $this->parsePredicate();
+    }
+
+    /**
+     * Parse a comparison predicate: expr op expr, expr [NOT] IN (...), or
+     * a bare expression evaluated for truthiness.
+     *
+     * @return mixed
+     */
+    protected function parsePredicate(): mixed
+    {
+        $left = $this->parseExpression();
+
+        // NOT IN split across two tokens (e.g. extra whitespace between them)
+        if (
+            $this->match('KEYWORD', 'NOT') &&
+            strtoupper((string)($this->peek(1)->value ?? '')) === 'IN'
+        ) {
+            $this->advance(); // NOT
+            $this->advance(); // IN
+            return new ConditionNode($left, 'NOT IN', $this->parseInList());
+        }
+
+        $token = $this->peek();
+
+        if ($token === null || $token->type !== 'COMPARISON_OPERATOR') {
+            return $left; // bare truthiness condition
+        }
+
+        $operator = strtoupper((string)$this->advance()->value);
+
+        if ($operator === 'IN' || $operator === 'NOT IN') {
+            return new ConditionNode($left, $operator, $this->parseInList());
+        }
+
+        return new ConditionNode($left, $operator, $this->parseExpression());
+    }
+
+    /**
+     * Parse a parenthesised value list for IN / NOT IN.
+     *
+     * @return array<mixed>
+     */
+    protected function parseInList(): array
+    {
+        $this->expect('LPAREN');
+
+        $values = [];
+
+        do {
+            $values[] = $this->parseExpression();
+
+            if (!$this->match('COMMA')) {
+                break;
+            }
+
+            $this->advance();
+        } while (true);
+
+        $this->expect('RPAREN');
+
+        return $values;
     }
 
     /**
@@ -421,7 +803,7 @@ class Parser
             return $first->value;
         }
 
-        if ($this->match('STRING') || $this->match('NUMBER')) {
+        if ($this->match('STRING') || $this->match('NUMBER') || $this->match('BOOLEAN')) {
             return $this->advance()->value;
         }
 
@@ -518,7 +900,7 @@ class Parser
      */
     protected function isOperator(Token $token): bool
     {
-        return OperatorRegistry::tryResolve($token->value) !== null;
+        return OperatorRegistry::tryResolve($token->value) !== false;
     }
 
     /**
@@ -530,28 +912,6 @@ class Parser
     protected function isWildcard(?Token $token): bool
     {
         return $token?->value === '*' && $token->type === 'MATH_OPERATOR';
-    }
-
-    /**
-     * Parse an operator symbol.
-     *
-     * @return string
-     * @throws ParserException
-     */
-    protected function parseOperatorSymbol(): string
-    {
-        $token = $this->peek();
-
-        if (!$token) {
-            throw new ParserException("Unexpected end of tokens at position {$this->position}");
-        }
-
-        if (!OperatorRegistry::has($token->value)) {
-            throw new ParserException("Expected operator, got '{$token->value}' at position {$this->position}");
-        }
-
-        $this->advance();
-        return $token->value;
     }
 
     /**

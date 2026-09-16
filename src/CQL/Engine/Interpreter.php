@@ -3,8 +3,8 @@
 namespace CQL\Engine;
 
 use CQL\Data\Support\Collection;
+use CQL\Engine\Concerns\EvaluatesExpressions;
 use CQL\Data\CSVDataSource;
-use CQL\Engine\Operators\Contracts\OperatorInterface;
 use CQL\Parser\Nodes\QueryNode;
 use CQL\Engine\Operators\Registry\OperatorRegistry;
 use CQL\Exceptions\InterpreterException;
@@ -13,6 +13,8 @@ use CQL\Parser\Nodes\WildcardNode;
 
 class Interpreter
 {
+    use EvaluatesExpressions;
+
     /**
      * @var Collection<array-key, mixed>
      */
@@ -151,13 +153,10 @@ class Interpreter
         }
 
         $condition = $this->query->where->condition;
-        $operator = OperatorRegistry::resolve($condition->operator);
 
-        $this->collection = $this->collection->filter(function ($row) use ($condition, $operator): bool {
-            $left = $this->evaluateOperand($condition->left, $row);
-            $right = $this->evaluateOperand($condition->right, $row);
-            return (bool)$operator::evaluate($left, $right);
-        });
+        $this->collection = $this->collection->filter(
+            fn($row): bool => $this->evaluateCondition($condition, $row)
+        );
     }
 
     /**
@@ -298,65 +297,6 @@ class Interpreter
             }
             return $mapped;
         });
-    }
-
-    /**
-     * Evaluate an operand.
-     *
-     * @param mixed $operand
-     * @param array<string, mixed> $row
-     * @return mixed
-     */
-    protected function evaluateOperand(mixed $operand, array $row): mixed
-    {
-        if ($operand instanceof ExpressionNode) {
-            $left = $this->evaluateOperand($operand->left, $row);
-            $right = $this->evaluateOperand($operand->right, $row);
-            $operator = OperatorRegistry::resolve($operand->operator);
-
-            return $operator::evaluate($left, $right);
-        }
-
-        if ($operand instanceof \CQL\Parser\Nodes\FunctionNode) {
-            // Evaluate date function on single row
-            $value = $this->resolveColumnValue($operand->argument, $row);
-            return $this->evaluateDateFunction(strtoupper($operand->name), $value);
-        }
-
-        if (is_string($operand)) {
-            if (is_numeric($operand)) {
-                return $operand + 0;
-            }
-
-            if (isset($row[$operand])) {
-                return $row[$operand];
-            }
-
-            if (!str_contains($operand, '.')) {
-                $matches = [];
-
-                foreach ($row as $key => $value) {
-                    if (str_ends_with($key, ".$operand")) {
-                        $matches[$key] = $value;
-                    }
-                }
-
-                if (count($matches) === 1) {
-                    return reset($matches); // Unambiguous match
-                }
-
-                if (count($matches) > 1) {
-                    $options = implode(', ', array_keys($matches));
-                    throw new InterpreterException("Ambiguous column reference '$operand'. Matches: $options");
-                }
-
-                return null;
-            }
-
-            return null;
-        }
-
-        return $operand;
     }
 
     /**
@@ -567,71 +507,4 @@ class Interpreter
         }
     }
 
-    /**
-     * Evaluate a date function.
-     *
-     * @param string $functionName
-     * @param mixed $value
-     * @return mixed
-     */
-    protected function evaluateDateFunction(string $functionName, mixed $value): mixed
-    {
-        if ($value === null) {
-            return null;
-        }
-
-        try {
-            $date = new \DateTime($value);
-
-            return match ($functionName) {
-                'YEAR' => (int)$date->format('Y'),
-                'MONTH' => (int)$date->format('m'),
-                'DAY' => (int)$date->format('d'),
-                'DATE' => $date->format('Y-m-d'),
-                default => null
-            };
-        } catch (\Exception $e) {
-            return null;
-        }
-    }
-
-    /**
-     * Resolve a column value from a row.
-     *
-     * @param mixed $column
-     * @param array<string, mixed> $row
-     * @return mixed
-     */
-    protected function resolveColumnValue(mixed $column, array $row): mixed
-    {
-        if (is_string($column)) {
-            // Direct match
-            if (isset($row[$column])) {
-                return $row[$column];
-            }
-
-            // Try to find with table prefix
-            foreach ($row as $key => $value) {
-                if (str_ends_with($key, ".$column")) {
-                    return $value;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Get short column name (without table prefix).
-     *
-     * @param string $column
-     * @return string
-     */
-    protected function getShortColumnName(string $column): string
-    {
-        if (str_contains($column, '.')) {
-            return substr($column, strrpos($column, '.') + 1);
-        }
-        return $column;
-    }
 }

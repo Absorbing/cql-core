@@ -4,12 +4,14 @@ namespace CQL;
 
 use CQL\Data\Support\Collection;
 use CQL\Engine\Interpreter;
+use CQL\Engine\Writer;
 use CQL\Exceptions\LexerException;
 use CQL\Exceptions\ParserException;
 use CQL\Exceptions\SyntaxException;
 use CQL\Exceptions\InterpreterException;
 use CQL\Exceptions\DataSourceException;
 use CQL\Lexer\Tokenizer;
+use CQL\Parser\Nodes\QueryNode;
 use CQL\Parser\Parser;
 
 /**
@@ -69,6 +71,17 @@ class CQL
         $parser = new Parser($tokens);
         $ast = $parser->parse();
 
+        // Write statements (INSERT / UPDATE / DELETE)
+        if (!$ast instanceof QueryNode) {
+            $writer = new Writer(
+                $ast,
+                streamingMode: $this->streaming,
+                autoStreamingThreshold: $this->autoStreamingThreshold
+            );
+
+            return new Collection([['affected_rows' => $writer->execute()]]);
+        }
+
         // Execute
         $interpreter = new Interpreter(
             $ast,
@@ -77,6 +90,37 @@ class CQL
         );
 
         return $interpreter->execute();
+    }
+
+    /**
+     * Execute a write statement (INSERT, UPDATE, DELETE) and return
+     * the number of affected rows.
+     *
+     * @param string $query The CQL statement to execute
+     * @return int Number of affected rows
+     * @throws InterpreterException If the statement is a SELECT query
+     */
+    public function statement(string $query): int
+    {
+        $tokenizer = new Tokenizer($query);
+        $tokens = $tokenizer->tokenize();
+
+        $parser = new Parser($tokens);
+        $ast = $parser->parse();
+
+        if ($ast instanceof QueryNode) {
+            throw new InterpreterException(
+                'statement() expects a write statement (INSERT, UPDATE, DELETE). Use execute() for queries.'
+            );
+        }
+
+        $writer = new Writer(
+            $ast,
+            streamingMode: $this->streaming,
+            autoStreamingThreshold: $this->autoStreamingThreshold
+        );
+
+        return $writer->execute();
     }
 
     /**

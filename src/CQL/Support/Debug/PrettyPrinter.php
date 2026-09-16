@@ -3,6 +3,7 @@
 namespace CQL\Support\Debug;
 
 use CQL\Data\Enums\CSVHeaderMode;
+use CQL\Parser\Nodes\Contracts\StatementNodeInterface;
 use CQL\Parser\Nodes\QueryNode;
 use CQL\Parser\Nodes\DefineNode;
 use CQL\Parser\Nodes\SelectNode;
@@ -15,12 +16,17 @@ class PrettyPrinter
     /**
      * Print the query node in a human-readable format.
      *
-     * @param QueryNode $queryNode
+     * @param StatementNodeInterface $queryNode
      * @return string
      */
-    public static function print(QueryNode $queryNode): string
+    public static function print(StatementNodeInterface $queryNode): string
     {
         $output = [];
+
+        if (!$queryNode instanceof QueryNode) {
+            // Write statements: fall back to a structural dump for now
+            return print_r($queryNode, true);
+        }
 
         $output[] = "QUERY:";
 
@@ -92,7 +98,35 @@ class PrettyPrinter
      */
     protected static function printWhere(WhereNode $whereNode): string
     {
-        $condition = $whereNode->condition;
-        return "WHERE: {$condition->left} {$condition->operator} {$condition->right}";
+        return 'WHERE: ' . self::formatCondition($whereNode->condition);
+    }
+
+    /**
+     * Recursively format a condition tree node.
+     *
+     * @param mixed $node
+     * @return string
+     */
+    protected static function formatCondition(mixed $node): string
+    {
+        if ($node instanceof \CQL\Parser\Nodes\UnaryConditionNode) {
+            return "{$node->operator} (" . self::formatCondition($node->operand) . ')';
+        }
+
+        if ($node instanceof ConditionNode) {
+            return '(' . self::formatCondition($node->left)
+                . " {$node->operator} "
+                . self::formatCondition($node->right) . ')';
+        }
+
+        if (is_array($node)) {
+            return '(' . implode(', ', array_map(self::formatCondition(...), $node)) . ')';
+        }
+
+        if (is_scalar($node)) {
+            return (string)$node;
+        }
+
+        return get_debug_type($node);
     }
 }

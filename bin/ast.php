@@ -15,6 +15,8 @@ if ($argc < 2) {
     exit(1);
 }
 
+$query = implode(' ', array_slice($argv, 1));
+
 $tokenizer = new Tokenizer($query);
 $tokens = $tokenizer->tokenize();
 $parser = new Parser($tokens);

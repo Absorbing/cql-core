@@ -3,8 +3,9 @@
 namespace CQL\Engine\Operators\Contracts;
 
 /**
- * Marker interface for expression operators.
+ * Marker interface for operators usable inside precedence-climbing
+ * expressions (currently the math operators).
  */
-interface ExpressionOperatorInterface extends OperatorInterface
+interface ExpressionOperatorInterface extends BinaryOperatorInterface
 {
 }

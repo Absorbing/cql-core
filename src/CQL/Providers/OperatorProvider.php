@@ -13,6 +13,9 @@ use CQL\Engine\Operators\LessThanOrEqualOperator;
 use CQL\Engine\Operators\ModulusOperator;
 use CQL\Engine\Operators\MultiplyOperator;
 use CQL\Engine\Operators\NotEqualOperator;
+use CQL\Engine\Operators\ExistsOperator;
+use CQL\Engine\Operators\InOperator;
+use CQL\Engine\Operators\NotInOperator;
 use CQL\Engine\Operators\NotOperator;
 use CQL\Engine\Operators\OrOperator;
 use CQL\Engine\Operators\PowerOperator;
@@ -42,6 +45,9 @@ class OperatorProvider
             ModulusOperator::class,
             MultiplyOperator::class,
             NotEqualOperator::class,
+            ExistsOperator::class,
+            InOperator::class,
+            NotInOperator::class,
             NotOperator::class,
             OrOperator::class,
             PowerOperator::class,

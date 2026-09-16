@@ -3,11 +3,12 @@
 namespace CQL\Data;
 
 use CQL\Data\Contracts\DataSourceInterface;
+use CQL\Data\Contracts\WritableDataSourceInterface;
 use CQL\Data\Enums\CSVHeaderMode;
 use CQL\Exceptions\DataSourceException;
 use Generator;
 
-class CSVDataSource implements DataSourceInterface
+class CSVDataSource implements DataSourceInterface, WritableDataSourceInterface
 {
     /**
      * @var array<int, array<string, string>>
@@ -129,6 +130,8 @@ class CSVDataSource implements DataSourceInterface
             if ($headers === false) {
                 throw new DataSourceException("Unable to read headers from file: {$this->path}");
             }
+
+            $this->headers = array_map(fn($value) => (string)($value ?? ''), $headers);
         }
 
         $index = 0;
@@ -136,6 +139,7 @@ class CSVDataSource implements DataSourceInterface
         while (($row = fgetcsv($handle, 0, $this->delimiter)) !== false) {
             if ($this->hasHeaders === CSVHeaderMode::WITHOUT_HEADERS && $index === 0) {
                 $headers = array_map(fn($pos) => "column_" . ($pos + 1), array_keys($row));
+                $this->headers = $headers;
             }
 
             if (count($headers) !== count($row)) {
@@ -283,5 +287,201 @@ class CSVDataSource implements DataSourceInterface
         $bytes /= (1 << (10 * $pow));
 
         return round($bytes, 2) . ' ' . $units[$pow];
+    }
+
+    /**
+     * Get the column headers for the data source.
+     *
+     * Populated by load(). May be null if the file is empty and
+     * load() has not been (or could not be) called.
+     *
+     * @return array<string>|null
+     */
+    public function getHeaders(): ?array
+    {
+        return $this->headers;
+    }
+
+    /**
+     * Append rows to the end of the CSV file.
+     *
+     * Rows are associative arrays of un-namespaced column => value pairs.
+     * Columns are mapped to the file's header order; missing columns are
+     * written as empty strings, unknown columns throw.
+     *
+     * If the file is empty, headers are derived from the first row's keys
+     * (and written as a header line when the source is WITH HEADERS).
+     *
+     * @param array<array<string, mixed>> $rows
+     * @return int Number of rows appended
+     * @throws DataSourceException
+     */
+    public function appendRows(array $rows): int
+    {
+        if ($rows === []) {
+            return 0;
+        }
+
+        if (!is_writable($this->path)) {
+            throw new DataSourceException("File not writable: {$this->path}");
+        }
+
+        $handle = fopen($this->path, 'c+');
+
+        if ($handle === false) {
+            throw new DataSourceException("Unable to open file for writing: {$this->path}");
+        }
+
+        if (!flock($handle, LOCK_EX)) {
+            fclose($handle);
+            throw new DataSourceException("Unable to acquire write lock on file: {$this->path}");
+        }
+
+        try {
+            $stat = fstat($handle);
+            $size = $stat['size'] ?? 0;
+
+            $writeHeaderLine = false;
+
+            if ($this->headers === null || $this->headers === []) {
+                if ($size > 0) {
+                    throw new DataSourceException(
+                        "Headers not loaded for non-empty file. Call load() before appendRows()."
+                    );
+                }
+
+                // Empty file: derive headers from the first row
+                $this->headers = array_map('strval', array_keys($rows[0]));
+                $writeHeaderLine = $this->hasHeaders === CSVHeaderMode::WITH_HEADERS;
+            }
+
+            fseek($handle, 0, SEEK_END);
+
+            // Ensure we start on a fresh line
+            if ($size > 0) {
+                fseek($handle, -1, SEEK_END);
+                $lastByte = fread($handle, 1);
+
+                if ($lastByte !== "\n") {
+                    fwrite($handle, "\n");
+                }
+            }
+
+            if ($writeHeaderLine) {
+                fputcsv($handle, $this->headers, $this->delimiter);
+            }
+
+            $written = 0;
+
+            foreach ($rows as $row) {
+                fputcsv($handle, $this->mapRowToHeaders($row), $this->delimiter);
+                $written++;
+            }
+
+            fflush($handle);
+
+            return $written;
+        } finally {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        }
+    }
+
+    /**
+     * Atomically replace the entire contents of the CSV file.
+     *
+     * Rows are written to a temporary file in the same directory, which is
+     * then renamed over the original so readers never see a half-written
+     * file and a failure part-way through leaves the original untouched.
+     *
+     * @param iterable<array<string, mixed>> $rows Un-namespaced rows
+     * @return void
+     * @throws DataSourceException
+     */
+    public function rewriteFrom(iterable $rows): void
+    {
+        if (!is_writable($this->path) || !is_writable(dirname($this->path))) {
+            throw new DataSourceException("File not writable: {$this->path}");
+        }
+
+        $tempPath = $this->path . '.' . uniqid('cql', true) . '.tmp';
+        $handle = fopen($tempPath, 'w');
+
+        if ($handle === false) {
+            throw new DataSourceException("Unable to create temporary file: {$tempPath}");
+        }
+
+        try {
+            $headersWritten = false;
+
+            if ($this->hasHeaders === CSVHeaderMode::WITH_HEADERS && $this->headers !== null) {
+                fputcsv($handle, $this->headers, $this->delimiter);
+                $headersWritten = true;
+            }
+
+            foreach ($rows as $row) {
+                if (!$headersWritten && $this->hasHeaders === CSVHeaderMode::WITH_HEADERS) {
+                    // Headers weren't loaded; derive from the first row
+                    $this->headers = array_map('strval', array_keys($row));
+                    fputcsv($handle, $this->headers, $this->delimiter);
+                    $headersWritten = true;
+                }
+
+                fputcsv($handle, $this->mapRowToHeaders($row), $this->delimiter);
+            }
+
+            fflush($handle);
+            fclose($handle);
+            $handle = null;
+
+            $permissions = fileperms($this->path);
+
+            if (!rename($tempPath, $this->path)) {
+                throw new DataSourceException("Unable to replace file: {$this->path}");
+            }
+
+            if ($permissions !== false) {
+                @chmod($this->path, $permissions & 0777);
+            }
+        } catch (\Throwable $e) {
+            if (is_resource($handle)) {
+                fclose($handle);
+            }
+
+            if (file_exists($tempPath)) {
+                @unlink($tempPath);
+            }
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Map an associative row onto the file's header order.
+     *
+     * @param array<string, mixed> $row
+     * @return array<int, string>
+     * @throws DataSourceException
+     */
+    protected function mapRowToHeaders(array $row): array
+    {
+        $headers = $this->headers ?? array_map('strval', array_keys($row));
+
+        $unknown = array_diff(array_keys($row), $headers);
+
+        if ($unknown !== []) {
+            throw new DataSourceException(
+                "Unknown column(s) '" . implode("', '", $unknown) . "' for file: {$this->path}"
+            );
+        }
+
+        $mapped = [];
+
+        foreach ($headers as $header) {
+            $value = $row[$header] ?? '';
+            $mapped[] = is_bool($value) ? ($value ? 'TRUE' : 'FALSE') : (string)$value;
+        }
+
+        return $mapped;
     }
 }

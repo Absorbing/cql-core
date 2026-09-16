@@ -2,7 +2,7 @@
 
 namespace CQL\Engine\Operators\Registry;
 
-use CQL\Engine\Operators\Contracts\OperatorInterface;
+use CQL\Engine\Operators\Contracts\BinaryOperatorInterface;
 use CQL\Engine\Operators\Contracts\ResolvableOperatorInterface;
 use CQL\Engine\Operators\Contracts\UnaryOperatorInterface;
 use CQL\Engine\Operators\Enum\OperatorType;
@@ -112,6 +112,49 @@ class OperatorRegistry
         return $operator;
     }
 
+    /**
+     * Resolve a symbol to a binary operator.
+     *
+     * Use this when the call site will invoke evaluate($left, $right),
+     * so a unary operator produces a clear error instead of a fatal.
+     *
+     * @param string $symbol
+     * @return BinaryOperatorInterface
+     * @throws InvalidArgumentException
+     */
+    public static function resolveBinary(string $symbol): BinaryOperatorInterface
+    {
+        $operator = self::resolve($symbol);
+
+        if (!$operator instanceof BinaryOperatorInterface) {
+            throw new InvalidArgumentException(
+                "Operator '$symbol' is not a binary operator and cannot be used with left and right operands."
+            );
+        }
+
+        return $operator;
+    }
+
+    /**
+     * Resolve a symbol to a unary operator.
+     *
+     * @param string $symbol
+     * @return UnaryOperatorInterface
+     * @throws InvalidArgumentException
+     */
+    public static function resolveUnary(string $symbol): UnaryOperatorInterface
+    {
+        $operator = self::resolve($symbol);
+
+        if (!$operator instanceof UnaryOperatorInterface) {
+            throw new InvalidArgumentException(
+                "Operator '$symbol' is not a unary operator."
+            );
+        }
+
+        return $operator;
+    }
+
 
     /**
      * Try to resolve an operator by its type safely.
@@ -165,7 +208,7 @@ class OperatorRegistry
 
         return match (true) {
             is_subclass_of($class, UnaryOperatorInterface::class) => OperatorType::UNARY,
-            is_subclass_of($class, OperatorInterface::class) => OperatorType::BINARY,
+            is_subclass_of($class, BinaryOperatorInterface::class) => OperatorType::BINARY,
             default => throw new InvalidArgumentException("Unknown operator type for '$symbol'")
         };
     }

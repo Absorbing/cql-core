@@ -5,6 +5,108 @@ All notable changes to CQL Core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-07-23
+
+### Added
+- **Full WHERE condition grammar**: WHERE clauses are now condition trees
+  with standard SQL precedence (OR < AND < NOT < predicates)
+  - **AND / OR**: combine any number of conditions, with parentheses for
+    explicit grouping: `WHERE (a = 1 OR b = 2) AND c > 3`
+  - **NOT**: negate any condition or group: `WHERE NOT (x = 1 OR y = 2)`
+  - **IN / NOT IN**: value list membership with loose comparison:
+    `WHERE age IN (25, 30)`, `WHERE city NOT IN ('Bristol', 'Bath')`
+  - **EXISTS**: presence test - true when a column's value is neither
+    null (missing) nor an empty string: `WHERE EXISTS email`,
+    `WHERE NOT EXISTS email` ('0' counts as existing)
+  - **Bare expressions**: `WHERE active` evaluates truthiness
+  - Applies identically to SELECT, UPDATE, and DELETE via the shared
+    evaluation trait
+  - Parenthesised expressions still work as predicates: `(a + b) > 5`
+- **Strict statement termination**: trailing tokens after a complete
+  statement now raise a SyntaxException. Previously
+  `WHERE a = 1 AND b = 2` parsed the first condition and silently
+  discarded the rest
+- **New AST node**: `UnaryConditionNode` (NOT / EXISTS); `WhereNode` now
+  holds a condition tree root instead of a single `ConditionNode`
+- **Write Operations (DML)**: CQL is no longer read-only
+  - **INSERT Statement**: `INSERT INTO alias [(columns)] VALUES (...), (...)`
+    - Explicit column lists (missing columns written as empty strings)
+    - Positional inserts matching the file's header order
+    - Multiple VALUES tuples in a single statement
+    - Inserting into an empty file writes the header line automatically
+  - **UPDATE Statement**: `UPDATE alias SET col = expr [, ...] [WHERE condition]`
+    - Full expression support in assignments (e.g. `SET age = age + 1`)
+    - Multiple assignments per statement
+  - **DELETE Statement**: `DELETE FROM alias [WHERE condition]`
+    - Omitting WHERE removes all rows (header line is preserved)
+- **Atomic Writes**: UPDATE and DELETE rewrite files via a temporary file
+  and rename, so a failure part-way through never corrupts the source
+- **Streaming Writes**: UPDATE and DELETE stream row-by-row on large files,
+  honouring the same automatic/explicit streaming modes as queries
+- **`CQL::statement()`**: Execute a write statement and return the affected
+  row count (`execute()` also accepts writes, returning
+  `[['affected_rows' => n]]`)
+- **`WritableDataSourceInterface`**: New data source contract with
+  `appendRows()`, `rewriteFrom()` (generator-friendly), and `getHeaders()`,
+  implemented by `CSVDataSource` with `flock`-guarded appends
+- **New AST Nodes**: `InsertNode`, `UpdateNode`, `DeleteNode`,
+  `AssignmentNode`, and a shared `StatementNodeInterface` contract
+  (implemented by `QueryNode`); `Parser::parse()` now returns
+  `StatementNodeInterface`
+- **`Engine\Writer`**: Write executor mirroring the Interpreter's streaming
+  behaviour; shared expression logic extracted into the
+  `Engine\Concerns\EvaluatesExpressions` trait used by both engines
+- **Boolean literals** accepted in expressions (`VALUES (TRUE)`)
+- 37 new tests (87 total, 260 assertions)
+
+### Fixed
+- **String literals in WHERE clauses matched nothing**: quoted strings kept
+  their quotes from the tokenizer and were treated as unresolvable column
+  references, so `WHERE name = 'Alice'` always returned 0 rows. Quoted
+  operands now resolve as string literals
+- **Tokenizer mangled words starting with "IN"**: the `IN` comparison
+  operator pattern had no word boundaries, so `INSERT` tokenized as
+  `IN` + `SERT` and identifiers like `index` as `IN` + `dex`. Word-based
+  operators are now anchored with `\b`
+- **`Parser::isOperator()` always returned true**: it compared
+  `tryResolve()`'s `|false` return against `null`
+- **`InOperator::evaluate()` and `ExistsOperator::evaluate()` were
+  stubs**: they returned constant `false` / `true` respectively. Both are
+  now implemented and registered (along with a new `NotInOperator`)
+- **`bin/ast.php` ignored its argument**: it always parsed its hardcoded
+  example query
+- **`OrOperator` registered under the wrong symbol**: its `symbols()`
+  returned `['NOT']` (copy-paste error), so `OR` was never resolvable and
+  the registration overwrote `NotOperator` - a WHERE clause using `NOT` as
+  a binary operator silently evaluated `left || right` instead. `OR` now
+  resolves correctly, and a registry test guards against future symbol
+  collisions
+
+### Changed
+- **Operator contract hierarchy redesigned** (BREAKING for anyone extending
+  the operator system):
+  - `ResolvableOperatorInterface` is now the true base contract, declaring
+    `symbols()` and `precedence()` (precedence applies to every operator
+    regardless of arity)
+  - New `BinaryOperatorInterface` declares `evaluate($left, $right)` and is
+    extended by `ComparisonOperatorInterface`, `LogicalOperatorInterface`,
+    `MathOperatorInterface`, and `ExpressionOperatorInterface`
+  - `UnaryOperatorInterface` (NOT, EXISTS) extends the base directly with
+    its own `evaluate($value)` and `operandPosition()`
+  - `OperatorRegistry` gains `resolveBinary()` and `resolveUnary()` which
+    throw a clear `InvalidArgumentException` on arity mismatch; the engine
+    now uses `resolveBinary()` wherever it evaluates left/right operands
+- `CSVDataSource` now records headers during in-memory loads (previously
+  only streaming loads populated them), exposed via `getHeaders()`
+- `PrettyPrinter::print()` accepts any `StatementNodeInterface` (falls back
+  to a structural dump for write statements)
+
+### Removed
+- `OperatorInterface` - replaced by `BinaryOperatorInterface`. No concrete
+  operator implemented it directly (all go through the specific
+  sub-interfaces), so only code type-hinting `OperatorInterface` itself is
+  affected
+
 ## [0.1.0] - 2025-02-01
 
 ### Added

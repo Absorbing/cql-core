@@ -2,7 +2,7 @@
 
 namespace CQL\Engine\Operators\Contracts;
 
-interface ComparisonOperatorInterface extends OperatorInterface
+interface ComparisonOperatorInterface extends BinaryOperatorInterface
 {
     /**
      * Evaluate the operator with the given left and right operands.

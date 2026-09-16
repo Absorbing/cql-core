@@ -4,22 +4,13 @@ namespace CQL\Engine\Operators\Contracts;
 
 use CQL\Engine\Operators\Enum\OperandPosition;
 
+/**
+ * Contract for operators that take a single operand (e.g. NOT, EXISTS).
+ *
+ * @package CQL\Engine\Operators\Contracts
+ */
 interface UnaryOperatorInterface extends ResolvableOperatorInterface
 {
-    /**
-     * Get the symbols associated with this operator.
-     *
-     * @return array<string>
-     */
-    public static function symbols(): array;
-
-    /**
-     * Get the precedence of this operator.
-     *
-     * @return int
-     */
-    public static function precedence(): int;
-
     /**
      * Evaluate the operator with the given value.
      *

@@ -1,31 +1,33 @@
 # CQL Core
 
 [![Build Status](https://github.com/Absorbing/cql-core/actions/workflows/phpunit.yaml/badge.svg)](https://github.com/Absorbing/cql-core/actions/workflows/phpunit.yaml)
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![Version](https://img.shields.io/badge/version-0.2.0-blue)
 ![PHP](https://img.shields.io/badge/php-8.4%2B-purple)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 **CQL (CSV Query Language)** is a SQL-like query language designed specifically for querying and manipulating CSV files in PHP. It provides a familiar SQL syntax for filtering, joining, and transforming CSV data without requiring a database.
 
 > [!IMPORTANT]
-> This is v0.1.0 - a read-only query library. Write operations (INSERT, UPDATE, DELETE) are planned for future releases. See [CHANGELOG.md](CHANGELOG.md) for details.
+> As of v0.2.0, CQL supports write operations (INSERT, UPDATE, DELETE) alongside queries. UPDATE and DELETE rewrite files atomically via a temporary file. See [CHANGELOG.md](CHANGELOG.md) for details.
 
 ## Features
 
 - **SQL-like Syntax** - Write queries using familiar SELECT, FROM, WHERE, JOIN, and GROUP BY statements
+- **Write Operations** - INSERT, UPDATE, and DELETE with atomic file rewrites and streaming support
 - **Aggregate Functions** - COUNT, SUM, AVG, MIN, MAX for data analysis
 - **Date Functions** - YEAR, MONTH, DAY, DATE for date-based analysis
 - **Multiple Data Sources** - Define and query multiple CSV files in a single query
 - **JOIN Support** - Perform INNER, LEFT, and RIGHT joins between CSV files
 - **Streaming Mode** - Process large files (>50MB) with minimal memory usage
 - **Expression Engine** - Support for mathematical and logical expressions in WHERE clauses
+- **Rich WHERE Conditions** - AND/OR/NOT with parentheses, IN/NOT IN value lists, and EXISTS presence tests
 - **Column Aliasing** - Rename columns in your result set
 - **Wildcard Selection** - Select all columns or prefix-specific columns with `*` syntax
 - **Header Detection** - Automatically handle CSVs with or without headers
 - **Simple Facade API** - Clean, intuitive interface with convenience methods
 - **Type-Safe** - Built with PHP 8.4+ features including readonly classes and enums
 - **Extensible** - Modular operator system for easy extension
-- **Well Tested** - 50 tests with 186 assertions covering core functionality
+- **Well Tested** - 120 tests with 300 assertions covering core functionality
 
 ## Requirements
 
@@ -107,6 +109,9 @@ CQL queries follow a SQL-like syntax with specific requirements:
 | `JOIN` | No | Join additional data sources |
 | `GROUP BY` | No | Group rows for aggregation |
 | `AS` | No | Aliases for tables and columns |
+| `INSERT INTO` | - | Append rows to a data source |
+| `UPDATE ... SET` | - | Modify rows in place (atomic rewrite) |
+| `DELETE FROM` | - | Remove rows (atomic rewrite) |
 
 **Query Structure:**
 ```sql
@@ -117,6 +122,44 @@ FROM alias
 [JOIN alias2 ON alias.key = alias2.key]
 [WHERE condition]
 ```
+
+**Write Statement Structure:**
+```sql
+-- Insert (explicit columns; missing columns are written as empty strings)
+DEFINE 'file.csv' AS alias WITH HEADERS
+INSERT INTO alias (col1, col2) VALUES ('a', 1), ('b', 2)
+
+-- Insert (positional; values must match the file's column order)
+DEFINE 'file.csv' AS alias WITH HEADERS
+INSERT INTO alias VALUES (1, 'a', 'b')
+
+-- Update (assignments support full expressions)
+DEFINE 'file.csv' AS alias WITH HEADERS
+UPDATE alias SET col1 = 'x', col2 = col2 + 1 WHERE col3 > 10
+
+-- Delete (omitting WHERE removes all rows; the header line is preserved)
+DEFINE 'file.csv' AS alias WITH HEADERS
+DELETE FROM alias WHERE col1 = 'x'
+```
+
+Write statements return the number of affected rows:
+
+```php
+$cql = new CQL();
+
+$affected = $cql->statement("
+    DEFINE 'users.csv' AS users WITH HEADERS
+    UPDATE users SET age = age + 1 WHERE name = 'Alice'
+");
+
+// execute() also accepts write statements, returning a Collection:
+// [['affected_rows' => 1]]
+```
+
+UPDATE and DELETE rewrite the file through a temporary file in the same
+directory followed by an atomic rename, so a failure part-way through never
+corrupts the original. Large files are processed row-by-row using the same
+streaming rules as queries. INSERT appends under an exclusive `flock`.
 
 ### CQL API
 
@@ -294,9 +337,12 @@ WHERE expression operator expression
 | | `<` | Less than |
 | | `>=` | Greater than or equal |
 | | `<=` | Less than or equal |
+| | `IN (...)` | Value list membership |
+| | `NOT IN (...)` | Negated membership |
 | **Logical** | `AND` | Logical AND |
 | | `OR` | Logical OR |
-| | `NOT` | Logical NOT |
+| | `NOT` | Negate a condition or group |
+| **Existence** | `EXISTS` | Value is present (not null, not empty string) |
 | **Mathematical** | `+` | Addition |
 | | `-` | Subtraction |
 | | `*` | Multiplication |
@@ -324,7 +370,24 @@ WHERE status != 'inactive'
 
 -- Parentheses for precedence
 WHERE (age > 18 AND age < 65) OR status = 'premium'
+
+-- Value list membership
+WHERE age IN (25, 30, 35)
+WHERE city NOT IN ('Bristol', 'Bath')
+
+-- Negation
+WHERE NOT status = 'inactive'
+WHERE NOT (age < 18 OR age > 65)
+
+-- Existence (non-null, non-empty; '0' counts as existing)
+WHERE EXISTS email
+WHERE NOT EXISTS email AND age >= 18
 ```
+
+Conditions follow standard SQL precedence: `OR` binds loosest, then `AND`,
+then `NOT`, then comparison predicates. Use parentheses to override.
+Trailing tokens after a complete statement raise a `SyntaxException`
+rather than being silently ignored.
 
 **Rules:**
 - WHERE clause is optional
@@ -549,10 +612,8 @@ The following SQL features are not currently implemented:
 - `OFFSET` - Skip results
 
 **Advanced Filtering:**
-- `IN (value1, value2, ...)` - Match multiple values
 - `LIKE` - Pattern matching
 - `BETWEEN` - Range queries
-- Complex nested WHERE conditions
 
 **Data Modification:**
 - `INSERT` - Add rows
@@ -924,12 +985,10 @@ $cql = new CQL([
 
 ## Limitations
 
-- **No Aggregations**: Currently no support for GROUP BY, COUNT, SUM, AVG, etc.
 - **No Sorting**: ORDER BY is not yet implemented
 - **No Limits**: LIMIT and OFFSET are not yet implemented
-- **Single WHERE Condition**: Complex WHERE clauses with multiple conditions are limited
 - **No Subqueries**: Nested queries are not supported
-- **No INSERT/UPDATE/DELETE**: Read-only operations only
+- **No DDL**: CREATE TABLE and DROP TABLE are not yet implemented
 
 ## Roadmap
 
@@ -939,12 +998,14 @@ Future features under consideration:
 - [ ] GROUP BY and HAVING clauses
 - [ ] ORDER BY with ASC/DESC
 - [ ] LIMIT and OFFSET
-- [ ] Complex WHERE conditions with nested logic
+- [x] Complex WHERE conditions with nested logic (AND/OR/NOT, parentheses) - *added in v0.2.0*
 - [ ] Subqueries
 - [ ] UNION operations
 - [ ] DISTINCT keyword
-- [ ] Additional operators (LIKE, BETWEEN, IN with arrays)
-- [ ] Write operations (INSERT, UPDATE, DELETE)
+- [x] IN / NOT IN with value lists, EXISTS - *added in v0.2.0*
+- [ ] Additional operators (LIKE, BETWEEN)
+- [x] Write operations (INSERT, UPDATE, DELETE) - *added in v0.2.0*
+- [ ] DDL operations (CREATE TABLE, DROP TABLE)
 - [ ] JSON and other data format support
 
 ## Testing

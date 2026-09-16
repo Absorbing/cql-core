@@ -40,6 +40,21 @@ enum ComparisonOperator: string
      */
     public static function pattern(): string
     {
-        return '(' . implode('|', array_map(fn($value) => preg_quote((string)$value), self::values())) . ')';
+        $alternatives = array_map(
+            static function ($value): string {
+                $quoted = preg_quote((string)$value);
+
+                // Word-based operators (IN, NOT IN) must only match whole
+                // words, otherwise IN swallows the start of INSERT, INTO,
+                // or identifiers like "index". Symbol operators (=, <=)
+                // cannot use \b as they sit next to non-word characters.
+                return preg_match('/^[a-z]/i', (string)$value)
+                    ? '\b' . $quoted . '\b'
+                    : $quoted;
+            },
+            self::values()
+        );
+
+        return '(' . implode('|', $alternatives) . ')';
     }
 }

@@ -19,14 +19,18 @@ class ExistsOperator extends BaseUnaryOperator implements UnaryOperatorInterface
     }
 
     /**
-     * Evaluate the operator with the given left and right operands.
+     * Check whether a value exists.
+     *
+     * A value exists when it is neither null (column missing from the row)
+     * nor an empty string (empty CSV cell). '0' and 'false' count as
+     * existing - EXISTS tests presence, not truthiness.
      *
      * @param mixed $value
      * @return bool
      */
     public static function evaluate(mixed $value): bool
     {
-        return true;
+        return $value !== null && $value !== '';
     }
 
     /**

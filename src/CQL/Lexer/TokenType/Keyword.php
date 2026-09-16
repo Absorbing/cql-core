@@ -52,13 +52,15 @@ enum Keyword: string
     case MONTH = 'MONTH';
     case DAY = 'DAY';
 
-//    TODO: Future implementation
-//    case INSERT = 'INSERT';
-//    case INTO = 'INTO';
-//    case VALUES = 'VALUES';
-//    case UPDATE = 'UPDATE';
-//    case SET = 'SET';
-//    case DELETE = 'DELETE';
+    // Write operations (DML)
+    case INSERT = 'INSERT';
+    case INTO = 'INTO';
+    case VALUES = 'VALUES';
+    case UPDATE = 'UPDATE';
+    case SET = 'SET';
+    case DELETE = 'DELETE';
+
+//    TODO: Future implementation (DDL)
 //    case CREATE = 'CREATE';
 //    case TABLE = 'TABLE';
 //    case DROP = 'DROP';
