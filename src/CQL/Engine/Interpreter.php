@@ -60,7 +60,7 @@ class Interpreter
         // Determine streaming mode
         if ($streaming === null) {
             // Automatic mode: check file size
-            $cleanPath = str_replace(['\'', '"'], '', $define->path);
+            $cleanPath = \CQL\Parser\Nodes\LiteralNode::decode($define->path);
             $fileSize = file_exists($cleanPath) ? filesize($cleanPath) : 0;
             $this->streaming = $fileSize !== false && $fileSize > $this->autoStreamingThreshold;
         } else {

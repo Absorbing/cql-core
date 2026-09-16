@@ -209,7 +209,7 @@ class Writer
 
         if ($streaming === null) {
             if ($this->streamingMode === null) {
-                $cleanPath = str_replace(['\'', '"'], '', $define->path);
+                $cleanPath = \CQL\Parser\Nodes\LiteralNode::decode($define->path);
                 $fileSize = file_exists($cleanPath) ? filesize($cleanPath) : 0;
                 $streaming = $fileSize !== false && $fileSize > $this->autoStreamingThreshold;
             } else {
