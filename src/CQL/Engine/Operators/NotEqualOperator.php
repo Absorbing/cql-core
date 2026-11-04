@@ -19,7 +19,7 @@ class NotEqualOperator extends BaseComparisonOperator implements ComparisonOpera
     /**
      * {@inheritDoc}
      *
-     * @return int
+     * @return bool
      */
     public static function evaluate(mixed $left, mixed $right): bool
     {

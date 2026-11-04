@@ -19,7 +19,7 @@ class AndOperator extends BaseLogicalOperator implements LogicalOperatorInterfac
     /**
      * {@inheritDoc}
      *
-     * @return int
+     * @return bool
      */
     public static function evaluate(mixed $left, mixed $right): bool
     {

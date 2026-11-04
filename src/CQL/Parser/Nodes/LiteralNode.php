@@ -12,6 +12,16 @@ readonly class LiteralNode
     {
     }
 
+    /** @return string */
+    public function __toString(): string
+    {
+        return match (true) {
+            $this->value === null => 'NULL',
+            is_bool($this->value) => $this->value ? 'TRUE' : 'FALSE',
+            default => (string)$this->value,
+        };
+    }
+
     /**
      * Decode SQL quote doubling while preserving literal backslashes.
      * @param string $quoted Quoted SQL string.
