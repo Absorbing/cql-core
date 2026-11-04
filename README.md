@@ -1197,3 +1197,28 @@ its rows in the callback. Custom writable sources may implement
 using their own locking mechanism. Sources without that interface retain
 their existing concurrency behaviour. This is per-file writer coordination,
 with no multi-statement or multi-file transactions.
+
+## Development checks
+
+Install the locked development dependencies and run all four checks before
+opening or merging a pull request:
+
+```sh
+composer install
+composer check
+```
+
+`composer check` runs PHPUnit, PHPStan level 8, PHP_CodeSniffer and PHPMD.
+Individual commands are `composer test`, `composer phpstan`, `composer phpcs`
+and `composer phpmd`. All four checks also run on pull requests to `master`.
+PHPMD uses the `codesize`, `cleancode`, `controversial`, `design`, `naming`
+and `unusedcode` rulesets with their standard thresholds. Its version is
+locked in `composer.lock`. PDepend uses an in-memory analysis cache so edited
+methods cannot inherit stale metrics from an earlier scan.
+
+Scoped PHPMD exceptions are documented at the affected declarations. They
+preserve the public facade, existing configuration flags and named arguments,
+and intentional static factory/registry operations. The built-in operator
+provider also documents its role as the composition root for the operator
+implementations. New grammar and execution components are internal; applications
+should continue using the public `CQL`, `PreparedQuery` and result APIs.

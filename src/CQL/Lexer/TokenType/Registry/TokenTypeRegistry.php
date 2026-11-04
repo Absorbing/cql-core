@@ -18,6 +18,8 @@ class TokenTypeRegistry
      * The patterns for the token groups
      *
      * @return array<string, string>
+     * The existing provider is a stateless token definition factory.
+     * @SuppressWarnings("PHPMD.StaticAccess")
      */
     public static function generatePatterns(): array
     {

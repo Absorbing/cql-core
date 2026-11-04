@@ -38,6 +38,8 @@ class OperatorRegistry
      * Ensure operators are loaded once.
      *
      * @return void
+     * Load the existing provider factory once into this registry.
+     * @SuppressWarnings("PHPMD.StaticAccess")
      */
     protected static function boot(): void
     {

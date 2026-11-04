@@ -9,14 +9,6 @@ use CQL\Parser\Nodes\DefineNode;
 use CQL\Parser\Nodes\SelectNode;
 use CQL\Parser\Nodes\FromNode;
 use CQL\Parser\Nodes\WhereNode;
-use CQL\Parser\Nodes\ConditionNode;
-use CQL\Parser\Nodes\AliasedColumnNode;
-use CQL\Parser\Nodes\ColumnReferenceNode;
-use CQL\Parser\Nodes\ExpressionNode;
-use CQL\Parser\Nodes\FunctionNode;
-use CQL\Parser\Nodes\LiteralNode;
-use CQL\Parser\Nodes\ParameterNode;
-use CQL\Parser\Nodes\WildcardNode;
 
 class PrettyPrinter
 {
@@ -109,58 +101,13 @@ class PrettyPrinter
     }
 
     /**
-     * Recursively format a projection, condition, or expression node.
-     *
-     * @param mixed $node
+     * Format through the pure AST formatter.
+     * @param mixed $node Projection or condition node.
      * @return string
+     * @SuppressWarnings("PHPMD.StaticAccess")
      */
     protected static function formatCondition(mixed $node): string
     {
-        if ($node instanceof AliasedColumnNode) {
-            return $node->expression . ' AS ' . $node->alias;
-        }
-
-        if ($node instanceof WildcardNode) {
-            return $node->prefix === null ? '*' : $node->prefix . '.*';
-        }
-
-        if ($node instanceof FunctionNode) {
-            $function = $node->name . '(' . self::formatCondition($node->argument) . ')';
-            return $function . ($node->alias === null ? '' : ' AS ' . $node->alias);
-        }
-
-        if ($node instanceof LiteralNode) {
-            return is_string($node->value)
-                ? "'" . str_replace("'", "''", $node->value) . "'"
-                : (string)$node;
-        }
-
-        if ($node instanceof ColumnReferenceNode) {
-            return $node->name;
-        }
-
-        if ($node instanceof ParameterNode) {
-            return (string)$node;
-        }
-
-        if ($node instanceof \CQL\Parser\Nodes\UnaryConditionNode) {
-            return "{$node->operator} (" . self::formatCondition($node->operand) . ')';
-        }
-
-        if ($node instanceof ConditionNode || $node instanceof ExpressionNode) {
-            return '(' . self::formatCondition($node->left)
-                . " {$node->operator} "
-                . self::formatCondition($node->right) . ')';
-        }
-
-        if (is_array($node)) {
-            return '(' . implode(', ', array_map(self::formatCondition(...), $node)) . ')';
-        }
-
-        if (is_scalar($node)) {
-            return (string)$node;
-        }
-
-        return get_debug_type($node);
+        return NodeFormatter::format($node);
     }
 }

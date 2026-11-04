@@ -1,0 +1,4 @@
+# Recompute metrics from source so edits cannot reuse stale method metrics.
+pdepend:
+  cache:
+    driver: memory

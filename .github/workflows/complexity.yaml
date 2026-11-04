@@ -5,6 +5,9 @@ on:
   push:
     branches:
       - master
+  pull_request:
+    branches:
+      - master
 
 jobs:
   phpmd:
@@ -12,17 +15,17 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
+          coverage: none
+          tools: composer:v2
 
-      - name: Install PHPMD
-        run: composer global require phpmd/phpmd
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: Run PHPMD (All Rulesets)
-        run: |
-          echo "Running PHPMD with all rulesets..."
-          phpmd src text codesize,cleancode,controversial,design,naming,unusedcode
+        run: composer phpmd

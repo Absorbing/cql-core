@@ -48,6 +48,8 @@ class Writer
      * @param bool|null $streamingMode Enable streaming mode (true/false), or null for automatic based on file size.
      * @param int $autoStreamingThreshold File size threshold in bytes for automatic streaming (default: 50MB).
      * @param array<string|int, string|int|float|bool|null> $parameters Bound values.
+     * Keep the established autoStreamingThreshold named argument compatible.
+     * @SuppressWarnings("PHPMD.LongVariable")
      */
     public function __construct(
         protected StatementNodeInterface $statement,
