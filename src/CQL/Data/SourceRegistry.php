@@ -40,6 +40,8 @@ final class SourceRegistry
      * @param bool $headers Whether the first CSV row contains headers.
      * @param string $delimiter CSV delimiter.
      * @return void
+     * Preserve the public CSV header option, translated to CSVHeaderMode immediately.
+     * @SuppressWarnings("PHPMD.BooleanArgumentFlag")
      */
     public function registerCsv(string $alias, string $path, bool $headers = true, string $delimiter = ','): void
     {
@@ -68,6 +70,8 @@ final class SourceRegistry
      * @param bool|null $streaming Requested mode.
      * @param int $threshold Automatic streaming threshold.
      * @return SourceHandle
+     * LiteralNode decoding is a stateless SQL string utility.
+     * @SuppressWarnings("PHPMD.StaticAccess")
      */
     public function resolve(string $alias, array $defines, ?bool $streaming, int $threshold): SourceHandle
     {

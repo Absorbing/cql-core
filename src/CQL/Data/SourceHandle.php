@@ -16,6 +16,8 @@ final class SourceHandle
      * @param DataSourceInterface $source Underlying source.
      * @param string $alias Query alias.
      * @param bool $qualified Whether rows already use this alias prefix.
+     * Preserve the adapter option describing whether source row keys are already qualified.
+     * @SuppressWarnings("PHPMD.BooleanArgumentFlag")
      */
     public function __construct(
         public readonly DataSourceInterface $source,

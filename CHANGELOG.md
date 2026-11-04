@@ -5,6 +5,23 @@ All notable changes to CQL Core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Refactored parsing, expression evaluation, result projection, aggregates and
+  CSV file operations to pass the existing PHPMD rules and complexity limits.
+- Preserved public execution APIs, named configuration arguments, lazy cursors,
+  coordinated write locks and append/replacement failure handling.
+- Added regression coverage for grouped wildcards, overridden mutation methods,
+  late connection configuration, aggregate value types, inferred headers and
+  invalid numeric bindings.
+
+### Changed
+- Added locked PHPMD development dependencies and a `composer check` command
+  covering PHPUnit, PHPStan level 8, PHP_CodeSniffer and all six PHPMD rulesets.
+- Run all four checks on pull requests to `master`, including a PHPStan workflow.
+- Updated PHPUnit and PHP_CodeSniffer development dependencies to patched versions.
+
 ## [0.2.0] - 2026-07-23
 
 ### Added

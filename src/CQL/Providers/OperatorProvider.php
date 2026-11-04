@@ -22,7 +22,8 @@ use CQL\Engine\Operators\PowerOperator;
 use CQL\Engine\Operators\SubtractOperator;
 
 /**
- * @SuppressWarnings PHPMD.CouplingBetweenObjects
+ * This composition root intentionally lists every built-in operator.
+ * @SuppressWarnings("PHPMD.CouplingBetweenObjects")
  */
 class OperatorProvider
 {

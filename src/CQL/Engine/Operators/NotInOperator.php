@@ -23,6 +23,8 @@ class NotInOperator extends BaseComparisonOperator implements ComparisonOperator
      * @param mixed $left
      * @param mixed $right A list of candidate values.
      * @return bool
+     * The operator contract is static; NOT IN composes the pure IN implementation.
+     * @SuppressWarnings("PHPMD.StaticAccess")
      */
     public static function evaluate(mixed $left, mixed $right): bool
     {

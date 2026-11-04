@@ -6,6 +6,9 @@ use CQL\Engine\Operators\Contracts\LogicalOperatorInterface;
 use CQL\Engine\Operators\Registry\OperatorRegistry;
 use CQL\Exceptions\InterpreterException;
 use CQL\Parser\Nodes\ConditionNode;
+use CQL\Parser\Nodes\FunctionNode;
+use DateTime;
+use Exception;
 use CQL\Parser\Nodes\ExpressionNode;
 use CQL\Parser\Nodes\LiteralNode;
 use CQL\Parser\Nodes\ParameterNode;
@@ -26,7 +29,8 @@ trait EvaluatesExpressions
     protected array $parameters = [];
 
     /**
-     * Evaluate a condition tree node to a boolean.
+     * Evaluate a condition tree node through the extensible operator registry.
+     * @SuppressWarnings("PHPMD.StaticAccess")
      *
      * Handles logical combinations (AND/OR), unary conditions (NOT/EXISTS),
      * comparison predicates, and bare expressions (truthiness).
@@ -72,19 +76,15 @@ trait EvaluatesExpressions
     }
 
     /**
-     * Evaluate an operand.
-     *
-     * @param mixed $operand
-     * @param array<string, mixed> $row
+     * Evaluate a typed operand, keeping legacy raw strings compatible.
+     * @param mixed $operand Input AST operand.
+     * @param array<string, mixed> $row Current row.
      * @return mixed
      */
     protected function evaluateOperand(mixed $operand, array $row): mixed
     {
         if ($operand instanceof ParameterNode) {
-            if (!array_key_exists($operand->key, $this->parameters)) {
-                throw new ParameterException("Missing parameter '{$operand->key}'", position: $operand->position);
-            }
-            return $this->parameters[$operand->key];
+            return $this->parameterValue($operand);
         }
         if ($operand instanceof LiteralNode) {
             return $operand->value;
@@ -92,64 +92,65 @@ trait EvaluatesExpressions
         if ($operand instanceof ColumnReferenceNode) {
             return $this->resolveColumnValue($operand->name, $row);
         }
-        // Value lists (IN / NOT IN): evaluate each element
         if (is_array($operand)) {
             return array_map(fn($value) => $this->evaluateOperand($value, $row), $operand);
         }
-
         if ($operand instanceof ExpressionNode) {
-            $left = $this->evaluateOperand($operand->left, $row);
-            $right = $this->evaluateOperand($operand->right, $row);
-            $operator = OperatorRegistry::resolveBinary($operand->operator);
-
-            return $operator::evaluate($left, $right);
+            return $this->evaluateBinaryExpression($operand, $row);
         }
-
-        if ($operand instanceof \CQL\Parser\Nodes\FunctionNode) {
-            // Evaluate date function on single row
-            $value = $this->resolveColumnValue($operand->argument, $row);
-            return $this->evaluateDateFunction(strtoupper($operand->name), $value);
+        if ($operand instanceof FunctionNode) {
+            return $this->evaluateDateFunction(strtoupper($operand->name), $this->resolveColumnValue($operand->argument, $row));
         }
+        return is_string($operand) ? $this->evaluateLegacyOperand($operand, $row) : $operand;
+    }
 
-        if (is_string($operand)) {
-            if (is_numeric($operand)) {
-                return $operand + 0;
-            }
-
-            // Quoted string literal (quotes are preserved by the tokenizer)
-            if (strlen($operand) >= 2 && str_starts_with($operand, "'") && str_ends_with($operand, "'")) {
-                return LiteralNode::decode($operand);
-            }
-
-            if (isset($row[$operand])) {
-                return $row[$operand];
-            }
-
-            if (!str_contains($operand, '.')) {
-                $matches = [];
-
-                foreach ($row as $key => $value) {
-                    if (str_ends_with($key, ".$operand")) {
-                        $matches[$key] = $value;
-                    }
-                }
-
-                if (count($matches) === 1) {
-                    return reset($matches); // Unambiguous match
-                }
-
-                if (count($matches) > 1) {
-                    $options = implode(', ', array_keys($matches));
-                    throw new InterpreterException("Ambiguous column reference '$operand'. Matches: $options");
-                }
-
-                return null;
-            }
-
-            return null;
+    /**
+     * @param ParameterNode $operand Binding reference.
+     * @return string|int|float|bool|null
+     */
+    private function parameterValue(ParameterNode $operand): string|int|float|bool|null
+    {
+        if (!array_key_exists($operand->key, $this->parameters)) {
+            throw new ParameterException("Missing parameter '{$operand->key}'", position: $operand->position);
         }
+        return $this->parameters[$operand->key];
+    }
 
-        return $operand;
+    /**
+     * Resolve arithmetic operators through the existing registry extension point.
+     * @param ExpressionNode $operand Binary expression.
+     * @param array<string, mixed> $row Current row.
+     * @return mixed
+     * @SuppressWarnings("PHPMD.StaticAccess")
+     */
+    private function evaluateBinaryExpression(ExpressionNode $operand, array $row): mixed
+    {
+        $left = $this->evaluateOperand($operand->left, $row);
+        $right = $this->evaluateOperand($operand->right, $row);
+        $operator = OperatorRegistry::resolveBinary($operand->operator);
+        return $operator::evaluate($left, $right);
+    }
+
+    /**
+     * Preserve raw string operands accepted by the earlier AST API.
+     * SQL decoding is a pure utility on LiteralNode.
+     * @param string $operand Legacy operand.
+     * @param array<string, mixed> $row Current row.
+     * @return mixed
+     * @SuppressWarnings("PHPMD.StaticAccess")
+     */
+    private function evaluateLegacyOperand(string $operand, array $row): mixed
+    {
+        if (is_numeric($operand)) {
+            return $operand + 0;
+        }
+        if (strlen($operand) >= 2 && str_starts_with($operand, "'") && str_ends_with($operand, "'")) {
+            return LiteralNode::decode($operand);
+        }
+        if (isset($row[$operand])) {
+            return $row[$operand];
+        }
+        return $this->resolveUnqualifiedColumn($operand, $row);
     }
 
     /**
@@ -166,7 +167,7 @@ trait EvaluatesExpressions
         }
 
         try {
-            $date = new \DateTime($value);
+            $date = new DateTime($value);
 
             return match ($functionName) {
                 'YEAR' => (int)$date->format('Y'),
@@ -175,22 +176,21 @@ trait EvaluatesExpressions
                 'DATE' => $date->format('Y-m-d'),
                 default => null
             };
-        } catch (\Exception $e) {
+        } catch (Exception) {
             return null;
         }
     }
 
     /**
-     * Resolve a column value from a row.
-     *
-     * @param mixed $column
-     * @param array<string, mixed> $row
+     * Resolve typed or raw column references, including null-valued columns.
+     * @param mixed $column Column or scalar AST node.
+     * @param array<string, mixed> $row Current row.
      * @return mixed
      */
     protected function resolveColumnValue(mixed $column, array $row): mixed
     {
         if ($column instanceof ParameterNode) {
-            return $this->evaluateOperand($column, $row);
+            return $this->parameterValue($column);
         }
         if ($column instanceof LiteralNode) {
             return $column->value;
@@ -204,12 +204,24 @@ trait EvaluatesExpressions
         if (array_key_exists($column, $row)) {
             return $row[$column];
         }
+        return $this->resolveUnqualifiedColumn($column, $row);
+    }
+
+    /**
+     * Reject ambiguous suffix matches instead of picking an arbitrary source.
+     * @param string $column Raw reference.
+     * @param array<string, mixed> $row Current row.
+     * @return mixed
+     */
+    private function resolveUnqualifiedColumn(string $column, array $row): mixed
+    {
+        if (str_contains($column, '.')) {
+            return null;
+        }
         $matches = [];
-        if (!str_contains($column, '.')) {
-            foreach ($row as $key => $value) {
-                if (str_ends_with($key, ".$column")) {
-                    $matches[$key] = $value;
-                }
+        foreach ($row as $key => $value) {
+            if (str_ends_with($key, ".$column")) {
+                $matches[$key] = $value;
             }
         }
         if (count($matches) > 1) {

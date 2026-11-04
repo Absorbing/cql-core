@@ -6,10 +6,24 @@ use CQL\Data\Support\Collection;
 use CQL\Exceptions\ParameterException;
 use CQL\Parser\Nodes\Contracts\StatementNodeInterface;
 use CQL\Parser\Nodes\ParameterNode;
+use CQL\Parser\Parser;
+use CQL\Lexer\Tokenizer;
 
 /** A parsed query reusable with a fresh set of values on every execution. */
 final class PreparedQuery
 {
+    /**
+     * Compile without opening sources or executing a statement.
+     * @param CQL $connection Owning connection.
+     * @param string $query Statement template.
+     * @return self
+     */
+    public static function fromQuery(CQL $connection, string $query): self
+    {
+        $parser = new Parser((new Tokenizer($query))->tokenize(), allowMissingDefines: true);
+        return new self($connection, $parser->parse(), $parser->getParameters());
+    }
+
     /**
      * @param CQL $connection Owning execution context.
      * @param StatementNodeInterface $statement Parsed statement.
@@ -76,10 +90,7 @@ final class PreparedQuery
             if (array_key_exists($key, $bound)) {
                 throw new ParameterException("Parameter '{$key}' was supplied twice");
             }
-            if (!(is_scalar($value) || $value === null) || (is_float($value) && !is_finite($value))) {
-                throw new ParameterException("Parameter '{$key}' must be a finite scalar or null", position: $this->parameters[$key]->position);
-            }
-            $bound[$key] = $value;
+            $bound[$key] = $this->finiteValue($key, $value);
         }
         foreach ($this->parameters as $key => $parameter) {
             if (!array_key_exists($key, $bound)) {
@@ -87,5 +98,18 @@ final class PreparedQuery
             }
         }
         return $bound;
+    }
+
+    /**
+     * @param string|int $key Normalised binding name.
+     * @param mixed $value Supplied value.
+     * @return string|int|float|bool|null
+     */
+    private function finiteValue(string|int $key, mixed $value): string|int|float|bool|null
+    {
+        if (!(is_scalar($value) || $value === null) || (is_float($value) && !is_finite($value))) {
+            throw new ParameterException("Parameter '{$key}' must be a finite scalar or null", position: $this->parameters[$key]->position);
+        }
+        return $value;
     }
 }

@@ -17,6 +17,8 @@ class Tokenizer
     /**
      * Consume the entire input, reporting the first invalid byte.
      * @return array<Token>
+     * Patterns come from the existing token registry extension point.
+     * @SuppressWarnings("PHPMD.StaticAccess")
      */
     public function tokenize(): array
     {
@@ -34,16 +36,27 @@ class Tokenizer
             if ($matched !== 1 || $matches[0][0] === '') {
                 throw new LexerException("Unexpected character at byte {$offset}", position: $offset);
             }
-            foreach ($matches as $name => $group) {
-                if (is_string($name) && $group[1] !== -1) {
-                    if ($name !== 'WHITESPACE' && $name !== 'COMMENT') {
-                        $tokens[] = new Token($name, $group[0], $offset);
-                    }
-                    break;
-                }
+            $token = $this->matchedToken($matches, $offset);
+            if ($token !== null) {
+                $tokens[] = $token;
             }
             $offset += strlen($matches[0][0]);
         }
         return $tokens;
+    }
+
+    /**
+     * @param array<int|string, array{string, int}> $matches Regex groups and offsets.
+     * @param int $offset Current input byte offset.
+     * @return Token|null
+     */
+    private function matchedToken(array $matches, int $offset): ?Token
+    {
+        foreach ($matches as $name => $group) {
+            if (is_string($name) && $group[1] !== -1) {
+                return in_array($name, ['WHITESPACE', 'COMMENT'], true) ? null : new Token($name, $group[0], $offset);
+            }
+        }
+        return null;
     }
 }

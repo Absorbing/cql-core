@@ -5,23 +5,22 @@ namespace CQL;
 use CQL\Data\Support\Collection;
 use CQL\Data\Contracts\DataSourceInterface;
 use CQL\Data\SourceRegistry;
-use CQL\Engine\Interpreter;
-use CQL\Engine\Writer;
+use CQL\Engine\Executor;
+use CQL\Parser\Nodes\QueryNode;
 use CQL\Exceptions\LexerException;
 use CQL\Exceptions\ParserException;
 use CQL\Exceptions\SyntaxException;
 use CQL\Exceptions\InterpreterException;
 use CQL\Exceptions\DataSourceException;
-use CQL\Lexer\Tokenizer;
-use CQL\Parser\Nodes\QueryNode;
 use CQL\Parser\Nodes\Contracts\StatementNodeInterface;
-use CQL\Parser\Parser;
 
 /**
  * CQL - CSV Query Language
  * 
  * A simple facade for executing CQL queries against CSV files.
  * 
+ * The facade keeps the established execution and configuration entry points.
+ * @SuppressWarnings("PHPMD.TooManyPublicMethods")
  * @package CQL
  */
 class CQL
@@ -39,7 +38,7 @@ class CQL
     /**
      * File size threshold in bytes for automatic streaming mode
      */
-    protected int $autoStreamingThreshold = 52428800; // 50 MB
+    protected int $streamThreshold = 52428800; // 50 MB
 
     /**
      * Create a new CQL instance.
@@ -50,7 +49,7 @@ class CQL
     {
         $this->sources = new SourceRegistry();
         $this->streaming = $options['streaming'] ?? null;
-        $this->autoStreamingThreshold = $options['autoStreamingThreshold'] ?? 52428800;
+        $this->streamThreshold = $options['autoStreamingThreshold'] ?? 52428800;
     }
 
     /**
@@ -59,6 +58,8 @@ class CQL
      * @param bool $headers Whether the first row contains column names.
      * @param string $delimiter CSV delimiter.
      * @return self
+     * Preserve the existing CSV format option, which is mapped to CSVHeaderMode.
+     * @SuppressWarnings("PHPMD.BooleanArgumentFlag")
      */
     public function registerCsv(string $alias, string $path, bool $headers = true, string $delimiter = ','): self
     {
@@ -104,15 +105,15 @@ class CQL
     }
 
     /**
-     * Parse without reading CSV rows or executing writes.
+     * Parse without reading source rows or executing writes.
+     * PreparedQuery owns its stateless parsing factory.
      * @param string $query Statement template.
      * @return PreparedQuery
+     * @SuppressWarnings("PHPMD.StaticAccess")
      */
     public function prepare(string $query): PreparedQuery
     {
-        $parser = new Parser((new Tokenizer($query))->tokenize(), allowMissingDefines: true);
-        $statement = $parser->parse();
-        return new PreparedQuery($this, $statement, $parser->getParameters());
+        return PreparedQuery::fromQuery($this, $query);
     }
 
     /**
@@ -137,13 +138,10 @@ class CQL
         if (!$ast instanceof QueryNode) {
             return new QueryResult([], affectedRows: $this->writeParsed($ast, $parameters));
         }
-        $interpreter = new Interpreter($ast, $this->streaming, $this->autoStreamingThreshold, $parameters, $this->sources);
-        $columns = $interpreter->getColumns();
-        return new QueryResult($columns, fn(): iterable => $interpreter->rows());
+        return (new Executor($this->streaming, $this->streamThreshold, $this->sources))->runParsed($ast, $parameters);
     }
 
     /**
-     * Execute an already parsed statement. Used by PreparedQuery.
      * @internal
      * @param StatementNodeInterface $ast Parsed statement.
      * @param array<string|int, string|int|float|bool|null> $parameters Bound values.
@@ -154,34 +152,18 @@ class CQL
         if (!$ast instanceof QueryNode) {
             return new Collection([['affected_rows' => $this->writeParsed($ast, $parameters)]]);
         }
-        return (new Interpreter(
-            $ast,
-            streaming: $this->streaming,
-            autoStreamingThreshold: $this->autoStreamingThreshold,
-            parameters: $parameters,
-            sources: $this->sources,
-        ))->execute();
+        return (new Executor($this->streaming, $this->streamThreshold, $this->sources))->executeParsed($ast, $parameters);
     }
 
     /**
-     * Execute an already parsed mutation. Used by PreparedQuery.
      * @internal
-     * @param StatementNodeInterface $ast Parsed mutation.
+     * @param StatementNodeInterface $ast Parsed statement.
      * @param array<string|int, string|int|float|bool|null> $parameters Bound values.
-     * @return int Number of affected rows.
+     * @return int
      */
     public function writeParsed(StatementNodeInterface $ast, array $parameters = []): int
     {
-        if ($ast instanceof QueryNode) {
-            throw new InterpreterException('statement() expects a write statement (INSERT, UPDATE, DELETE). Use execute() for queries.');
-        }
-        return (new Writer(
-            $ast,
-            streamingMode: $this->streaming,
-            autoStreamingThreshold: $this->autoStreamingThreshold,
-            parameters: $parameters,
-            sources: $this->sources,
-        ))->execute();
+        return (new Executor($this->streaming, $this->streamThreshold, $this->sources))->writeParsed($ast, $parameters);
     }
 
     /**
@@ -255,7 +237,7 @@ class CQL
      */
     public function setAutoStreamingThreshold(int $bytes): self
     {
-        $this->autoStreamingThreshold = $bytes;
+        $this->streamThreshold = $bytes;
         return $this;
     }
 
@@ -263,6 +245,8 @@ class CQL
      * Get current streaming mode setting.
      *
      * @return bool|null
+     * This legacy getter returns the tri-state configuration, including automatic mode.
+     * @SuppressWarnings("PHPMD.BooleanGetMethodName")
      */
     public function getStreaming(): ?bool
     {
@@ -276,7 +260,7 @@ class CQL
      */
     public function getAutoStreamingThreshold(): int
     {
-        return $this->autoStreamingThreshold;
+        return $this->streamThreshold;
     }
 
     /**

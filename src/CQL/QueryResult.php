@@ -2,6 +2,8 @@
 
 namespace CQL;
 
+use LogicException;
+
 use Closure;
 use Generator;
 use Iterator;
@@ -53,7 +55,7 @@ final class QueryResult
         }
         try {
             if ($this->iterator === null) {
-                $factory = $this->factory ?? throw new \LogicException('Result row factory is unavailable');
+                $factory = $this->factory ?? throw new LogicException('Result row factory is unavailable');
                 $rows = $factory();
                 $this->factory = null;
                 $this->iterator = (static function () use ($rows): Generator { yield from $rows; })();
