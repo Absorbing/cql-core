@@ -19,7 +19,7 @@ class OrOperator extends BaseLogicalOperator implements LogicalOperatorInterface
     /**
      * {@inheritDoc}
      *
-     * @return int
+     * @return bool
      */
     public static function evaluate(mixed $left, mixed $right): bool
     {

@@ -3,6 +3,8 @@
 namespace CQL\Engine;
 
 use CQL\Data\CSVDataSource;
+use CQL\Data\SourceRegistry;
+use CQL\Data\SourceHandle;
 use CQL\Engine\Concerns\EvaluatesExpressions;
 use CQL\Engine\Operators\Registry\OperatorRegistry;
 use CQL\Exceptions\InterpreterException;
@@ -25,6 +27,8 @@ use Generator;
  */
 class Writer
 {
+    private ?SourceHandle $activeSource = null;
+
     use EvaluatesExpressions;
 
     /**
@@ -43,12 +47,16 @@ class Writer
      * @param StatementNodeInterface $statement An InsertNode, UpdateNode, or DeleteNode.
      * @param bool|null $streamingMode Enable streaming mode (true/false), or null for automatic based on file size.
      * @param int $autoStreamingThreshold File size threshold in bytes for automatic streaming (default: 50MB).
+     * @param array<string|int, string|int|float|bool|null> $parameters Bound values.
      */
     public function __construct(
         protected StatementNodeInterface $statement,
         protected ?bool $streamingMode = null,
-        protected int $autoStreamingThreshold = 52428800  // 50 MB
+        protected int $autoStreamingThreshold = 52428800,
+        array $parameters = [],
+        protected ?SourceRegistry $sources = null,
     ) {
+        $this->parameters = $parameters;
         foreach ($statement->getDefines() as $define) {
             $this->defineMap[$define->alias] = $define;
         }
@@ -62,14 +70,19 @@ class Writer
      */
     public function execute(): int
     {
-        return match (true) {
-            $this->statement instanceof InsertNode => $this->executeInsert($this->statement),
-            $this->statement instanceof UpdateNode => $this->executeUpdate($this->statement),
-            $this->statement instanceof DeleteNode => $this->executeDelete($this->statement),
-            default => throw new InterpreterException(
-                'Writer cannot execute statement of type ' . get_class($this->statement)
-            ),
-        };
+        if (!$this->statement instanceof InsertNode && !$this->statement instanceof UpdateNode && !$this->statement instanceof DeleteNode) {
+            throw new InterpreterException('Writer cannot execute statement of type ' . get_class($this->statement));
+        }
+        $this->activeSource = $this->resolveSource($this->statement->table, $this->statement instanceof InsertNode ? true : null);
+        try {
+            return $this->activeSource->withWriteLock(fn(): int => match (true) {
+                $this->statement instanceof InsertNode => $this->executeInsert($this->statement),
+                $this->statement instanceof UpdateNode => $this->executeUpdate($this->statement),
+                default => $this->executeDelete($this->statement),
+            });
+        } finally {
+            $this->activeSource = null;
+        }
     }
 
     /**
@@ -83,9 +96,7 @@ class Writer
     {
         $source = $this->resolveSource($insert->table, streaming: true);
 
-        if (($source->getFileSize() ?: 0) > 0) {
-            $source->load();
-        }
+        $source->loadForInsert();
 
         $headers = $source->getHeaders();
         $rows = [];
@@ -196,47 +207,29 @@ class Writer
      *
      * @param string $alias
      * @param bool|null $streaming Force a streaming mode, or null to decide from settings/file size.
-     * @return CSVDataSource
+     * @return SourceHandle
      * @throws InterpreterException
      */
-    protected function resolveSource(string $alias, ?bool $streaming = null): CSVDataSource
+    protected function resolveSource(string $alias, ?bool $streaming = null): SourceHandle
     {
-        if (!isset($this->defineMap[$alias])) {
-            throw new InterpreterException("Undefined data source alias '{$alias}'");
+        if ($this->activeSource !== null) {
+            return $this->activeSource;
         }
-
-        $define = $this->defineMap[$alias];
-
-        if ($streaming === null) {
-            if ($this->streamingMode === null) {
-                $cleanPath = \CQL\Parser\Nodes\LiteralNode::decode($define->path);
-                $fileSize = file_exists($cleanPath) ? filesize($cleanPath) : 0;
-                $streaming = $fileSize !== false && $fileSize > $this->autoStreamingThreshold;
-            } else {
-                $streaming = $this->streamingMode;
-            }
-        }
-
-        $this->streaming = $streaming;
-
-        return new CSVDataSource(
-            $define->path,
-            $define->hasHeaders,
-            $define->delimiter ?? ',',
-            $define->alias,
-            $streaming
-        );
+        $this->sources ??= new SourceRegistry();
+        $source = $this->sources->resolve($alias, $this->statement->getDefines(), $streaming ?? $this->streamingMode, $this->autoStreamingThreshold);
+        $this->streaming = $source->isStreaming();
+        return $source;
     }
 
     /**
      * Read rows from a source, streaming when enabled.
      *
-     * @param CSVDataSource $source
+     * @param SourceHandle $source
      * @return iterable<array<string, string>>
      */
-    protected function readRows(CSVDataSource $source): iterable
+    protected function readRows(SourceHandle $source): iterable
     {
-        return $source->isStreaming() ? $source->streamRows() : $source->getRows();
+        return $source->rows();
     }
 
     /**

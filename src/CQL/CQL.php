@@ -3,6 +3,8 @@
 namespace CQL;
 
 use CQL\Data\Support\Collection;
+use CQL\Data\Contracts\DataSourceInterface;
+use CQL\Data\SourceRegistry;
 use CQL\Engine\Interpreter;
 use CQL\Engine\Writer;
 use CQL\Exceptions\LexerException;
@@ -12,6 +14,7 @@ use CQL\Exceptions\InterpreterException;
 use CQL\Exceptions\DataSourceException;
 use CQL\Lexer\Tokenizer;
 use CQL\Parser\Nodes\QueryNode;
+use CQL\Parser\Nodes\Contracts\StatementNodeInterface;
 use CQL\Parser\Parser;
 
 /**
@@ -23,6 +26,8 @@ use CQL\Parser\Parser;
  */
 class CQL
 {
+    protected SourceRegistry $sources;
+
     /**
      * Streaming mode setting
      * - null: Automatic (default, based on file size)
@@ -43,8 +48,43 @@ class CQL
      */
     public function __construct(array $options = [])
     {
+        $this->sources = new SourceRegistry();
         $this->streaming = $options['streaming'] ?? null;
         $this->autoStreamingThreshold = $options['autoStreamingThreshold'] ?? 52428800;
+    }
+
+    /**
+     * @param string $alias Query source name.
+     * @param string $path Literal filesystem path.
+     * @param bool $headers Whether the first row contains column names.
+     * @param string $delimiter CSV delimiter.
+     * @return self
+     */
+    public function registerCsv(string $alias, string $path, bool $headers = true, string $delimiter = ','): self
+    {
+        $this->sources->registerCsv($alias, $path, $headers, $delimiter);
+        return $this;
+    }
+
+    /**
+     * @param string $alias Query source name.
+     * @param callable(): DataSourceInterface $factory Fresh source factory using unqualified row keys.
+     * @return self
+     */
+    public function registerSource(string $alias, callable $factory): self
+    {
+        $this->sources->register($alias, $factory);
+        return $this;
+    }
+
+    /**
+     * @param string $alias Query source name.
+     * @return self
+     */
+    public function unregisterSource(string $alias): self
+    {
+        $this->sources->unregister($alias);
+        return $this;
     }
 
     /**
@@ -60,33 +100,88 @@ class CQL
      */
     public function execute(string $query): Collection
     {
-        // Tokenize
-        $tokenizer = new Tokenizer($query);
-        $tokens = $tokenizer->tokenize();
+        return $this->prepare($query)->execute();
+    }
 
-        // Parse
-        $parser = new Parser($tokens);
-        $ast = $parser->parse();
+    /**
+     * Parse without reading CSV rows or executing writes.
+     * @param string $query Statement template.
+     * @return PreparedQuery
+     */
+    public function prepare(string $query): PreparedQuery
+    {
+        $parser = new Parser((new Tokenizer($query))->tokenize(), allowMissingDefines: true);
+        $statement = $parser->parse();
+        return new PreparedQuery($this, $statement, $parser->getParameters());
+    }
 
-        // Write statements (INSERT / UPDATE / DELETE)
+    /**
+     * Execute with metadata and a forward-only result cursor.
+     * @param string $query Statement template.
+     * @param array<string|int, mixed> $parameters Bound values.
+     * @return QueryResult
+     */
+    public function run(string $query, array $parameters = []): QueryResult
+    {
+        return $this->prepare($query)->run($parameters);
+    }
+
+    /**
+     * @internal
+     * @param StatementNodeInterface $ast Parsed statement.
+     * @param array<string|int, string|int|float|bool|null> $parameters Bound values.
+     * @return QueryResult
+     */
+    public function runParsed(StatementNodeInterface $ast, array $parameters = []): QueryResult
+    {
         if (!$ast instanceof QueryNode) {
-            $writer = new Writer(
-                $ast,
-                streamingMode: $this->streaming,
-                autoStreamingThreshold: $this->autoStreamingThreshold
-            );
-
-            return new Collection([['affected_rows' => $writer->execute()]]);
+            return new QueryResult([], affectedRows: $this->writeParsed($ast, $parameters));
         }
+        $interpreter = new Interpreter($ast, $this->streaming, $this->autoStreamingThreshold, $parameters, $this->sources);
+        $columns = $interpreter->getColumns();
+        return new QueryResult($columns, fn(): iterable => $interpreter->rows());
+    }
 
-        // Execute
-        $interpreter = new Interpreter(
+    /**
+     * Execute an already parsed statement. Used by PreparedQuery.
+     * @internal
+     * @param StatementNodeInterface $ast Parsed statement.
+     * @param array<string|int, string|int|float|bool|null> $parameters Bound values.
+     * @return Collection<array-key, mixed>
+     */
+    public function executeParsed(StatementNodeInterface $ast, array $parameters = []): Collection
+    {
+        if (!$ast instanceof QueryNode) {
+            return new Collection([['affected_rows' => $this->writeParsed($ast, $parameters)]]);
+        }
+        return (new Interpreter(
             $ast,
             streaming: $this->streaming,
-            autoStreamingThreshold: $this->autoStreamingThreshold
-        );
+            autoStreamingThreshold: $this->autoStreamingThreshold,
+            parameters: $parameters,
+            sources: $this->sources,
+        ))->execute();
+    }
 
-        return $interpreter->execute();
+    /**
+     * Execute an already parsed mutation. Used by PreparedQuery.
+     * @internal
+     * @param StatementNodeInterface $ast Parsed mutation.
+     * @param array<string|int, string|int|float|bool|null> $parameters Bound values.
+     * @return int Number of affected rows.
+     */
+    public function writeParsed(StatementNodeInterface $ast, array $parameters = []): int
+    {
+        if ($ast instanceof QueryNode) {
+            throw new InterpreterException('statement() expects a write statement (INSERT, UPDATE, DELETE). Use execute() for queries.');
+        }
+        return (new Writer(
+            $ast,
+            streamingMode: $this->streaming,
+            autoStreamingThreshold: $this->autoStreamingThreshold,
+            parameters: $parameters,
+            sources: $this->sources,
+        ))->execute();
     }
 
     /**
@@ -99,25 +194,7 @@ class CQL
      */
     public function statement(string $query): int
     {
-        $tokenizer = new Tokenizer($query);
-        $tokens = $tokenizer->tokenize();
-
-        $parser = new Parser($tokens);
-        $ast = $parser->parse();
-
-        if ($ast instanceof QueryNode) {
-            throw new InterpreterException(
-                'statement() expects a write statement (INSERT, UPDATE, DELETE). Use execute() for queries.'
-            );
-        }
-
-        $writer = new Writer(
-            $ast,
-            streamingMode: $this->streaming,
-            autoStreamingThreshold: $this->autoStreamingThreshold
-        );
-
-        return $writer->execute();
+        return $this->prepare($query)->statement();
     }
 
     /**
@@ -139,7 +216,12 @@ class CQL
      */
     public function first(string $query): mixed
     {
-        return $this->execute($query)->first();
+        $result = $this->run($query);
+        try {
+            return $result->isQuery() ? ($result->fetch() ?? false) : ['affected_rows' => $result->affectedRows()];
+        } finally {
+            $result->close();
+        }
     }
 
     /**

@@ -3,13 +3,18 @@
 namespace CQL\Data;
 
 use CQL\Data\Contracts\DataSourceInterface;
+use CQL\Data\Contracts\SchemaDataSourceInterface;
+use CQL\Data\Contracts\StreamingDataSourceInterface;
 use CQL\Data\Contracts\WritableDataSourceInterface;
+use CQL\Data\Contracts\LockingWritableDataSourceInterface;
 use CQL\Data\Enums\CSVHeaderMode;
 use CQL\Exceptions\DataSourceException;
 use Generator;
 
-class CSVDataSource implements DataSourceInterface, WritableDataSourceInterface
+class CSVDataSource implements StreamingDataSourceInterface, LockingWritableDataSourceInterface
 {
+    private int $writeLockDepth = 0;
+
     /**
      * @var array<int, array<string, string>>
      */
@@ -58,6 +63,8 @@ class CSVDataSource implements DataSourceInterface, WritableDataSourceInterface
             throw new DataSourceException("File not readable: {$this->path}", context: ['path' => $this->path, 'alias' => $this->alias]);
         }
 
+        // All aliases and symlinks to this path use the same stable lock file.
+        $this->path = realpath($this->path) ?: $this->path;
         $this->streaming = $streaming;
     }
 
@@ -69,6 +76,8 @@ class CSVDataSource implements DataSourceInterface, WritableDataSourceInterface
      */
     public function load(): void
     {
+        $this->rows = [];
+        $this->headers = null;
         if ($this->streaming) {
             $this->loadHeaders();
             return;
@@ -91,22 +100,23 @@ class CSVDataSource implements DataSourceInterface, WritableDataSourceInterface
             throw new DataSourceException("Unable to open file: {$this->path}");
         }
 
-        if ($this->hasHeaders === CSVHeaderMode::WITH_HEADERS) {
-            $this->headers = fgetcsv($handle, 0, $this->delimiter);
-
-            if ($this->headers === false) {
-                fclose($handle);
-                throw new DataSourceException("Unable to read headers from file: {$this->path}");
+        try {
+            if ($this->hasHeaders === CSVHeaderMode::WITH_HEADERS) {
+                $headers = fgetcsv($handle, 0, $this->delimiter, '"', "\\");
+                if ($headers === false) {
+                    throw new DataSourceException("Unable to read headers from file: {$this->path}", context: ['path' => $this->path, 'alias' => $this->alias]);
+                }
+                $this->headers = array_map(fn($value) => (string)($value ?? ''), $headers);
+            } else {
+                // Read first row to determine column count.
+                $firstRow = fgetcsv($handle, 0, $this->delimiter, '"', "\\");
+                if ($firstRow !== false) {
+                    $this->headers = array_map(fn($pos) => "column_" . ($pos + 1), array_keys($firstRow));
+                }
             }
-        } else {
-            // Read first row to determine column count
-            $firstRow = fgetcsv($handle, 0, $this->delimiter);
-            if ($firstRow !== false) {
-                $this->headers = array_map(fn($pos) => "column_" . ($pos + 1), array_keys($firstRow));
-            }
+        } finally {
+            fclose($handle);
         }
-
-        fclose($handle);
     }
 
     /**
@@ -126,10 +136,11 @@ class CSVDataSource implements DataSourceInterface, WritableDataSourceInterface
         $headers = [];
 
         if ($this->hasHeaders === CSVHeaderMode::WITH_HEADERS) {
-            $headers = fgetcsv($handle, 0, $this->delimiter);
+            $headers = fgetcsv($handle, 0, $this->delimiter, '"', "\\");
 
             if ($headers === false) {
-                throw new DataSourceException("Unable to read headers from file: {$this->path}");
+                fclose($handle);
+                throw new DataSourceException("Unable to read headers from file: {$this->path}", context: ['path' => $this->path, 'alias' => $this->alias]);
             }
 
             $this->headers = array_map(fn($value) => (string)($value ?? ''), $headers);
@@ -137,7 +148,7 @@ class CSVDataSource implements DataSourceInterface, WritableDataSourceInterface
 
         $index = 0;
 
-        while (($row = fgetcsv($handle, 0, $this->delimiter)) !== false) {
+        while (($row = fgetcsv($handle, 0, $this->delimiter, '"', "\\")) !== false) {
             if ($this->hasHeaders === CSVHeaderMode::WITHOUT_HEADERS && $index === 0) {
                 $headers = array_map(fn($pos) => "column_" . ($pos + 1), array_keys($row));
                 $this->headers = $headers;
@@ -192,47 +203,31 @@ class CSVDataSource implements DataSourceInterface, WritableDataSourceInterface
     public function streamRows(): Generator
     {
         $handle = fopen($this->path, 'r');
-
         if ($handle === false) {
-            throw new DataSourceException("Unable to open file: {$this->path}");
+            throw new DataSourceException("Unable to open file: {$this->path}", context: ['path' => $this->path, 'alias' => $this->alias]);
         }
-
-        // Skip headers if present
-        if ($this->hasHeaders === CSVHeaderMode::WITH_HEADERS) {
-            fgetcsv($handle, 0, $this->delimiter);
+        try {
+            if ($this->hasHeaders === CSVHeaderMode::WITH_HEADERS) {
+                fgetcsv($handle, 0, $this->delimiter, '"', "\\");
+            }
+            $index = 0;
+            while (($row = fgetcsv($handle, 0, $this->delimiter, '"', "\\")) !== false) {
+                if ($this->headers === null) {
+                    throw new DataSourceException('Headers not loaded. Call load() first.');
+                }
+                if (count($this->headers) !== count($row)) {
+                    throw new DataSourceException("Row column count mismatch at row {$index}", context: ['path' => $this->path, 'alias' => $this->alias, 'row' => $index]);
+                }
+                $namespaced = [];
+                foreach ($this->headers as $column => $name) {
+                    $namespaced[$this->alias . '.' . $name] = (string)($row[$column] ?? '');
+                }
+                yield $index => $namespaced;
+                $index++;
+            }
+        } finally {
+            fclose($handle);
         }
-
-        $index = 0;
-
-        while (($row = fgetcsv($handle, 0, $this->delimiter)) !== false) {
-            if ($this->headers === null) {
-                throw new DataSourceException("Headers not loaded. Call load() first.");
-            }
-
-            if (count($this->headers) !== count($row)) {
-                fclose($handle);
-                throw new DataSourceException("Row column count mismatch at row {$index}", context: ['path' => $this->path, 'alias' => $this->alias, 'row' => $index]);
-            }
-
-            $row = array_map(fn($value) => (string)($value ?? ''), $row);
-            $headers = array_map(fn($value) => (string)($value ?? ''), $this->headers);
-            $combined = array_combine($headers, $row);
-
-            if (!$combined) {
-                fclose($handle);
-                throw new DataSourceException("Failed to combine headers and row at index {$index}");
-            }
-
-            $namespacedRow = [];
-            foreach ($combined as $key => $value) {
-                $namespacedRow["{$this->alias}.{$key}"] = $value;
-            }
-
-            yield $namespacedRow;
-            $index++;
-        }
-
-        fclose($handle);
     }
 
     /**
@@ -264,6 +259,7 @@ class CSVDataSource implements DataSourceInterface, WritableDataSourceInterface
      */
     public function getFileSize(): int|false
     {
+        clearstatcache(true, $this->path);
         return filesize($this->path);
     }
 
@@ -322,69 +318,101 @@ class CSVDataSource implements DataSourceInterface, WritableDataSourceInterface
         if ($rows === []) {
             return 0;
         }
-
-        if (!is_writable($this->path)) {
-            throw new DataSourceException("File not writable: {$this->path}");
-        }
-
-        $handle = fopen($this->path, 'c+');
-
-        if ($handle === false) {
-            throw new DataSourceException("Unable to open file for writing: {$this->path}");
-        }
-
-        if (!flock($handle, LOCK_EX)) {
-            fclose($handle);
-            throw new DataSourceException("Unable to acquire write lock on file: {$this->path}");
-        }
-
-        try {
-            $stat = fstat($handle);
-            $size = $stat['size'] ?? 0;
-
-            $writeHeaderLine = false;
-
-            if ($this->headers === null || $this->headers === []) {
-                if ($size > 0) {
-                    throw new DataSourceException(
-                        "Headers not loaded for non-empty file. Call load() before appendRows()."
-                    );
-                }
-
-                // Empty file: derive headers from the first row
-                $this->headers = array_map('strval', array_keys($rows[0]));
-                $writeHeaderLine = $this->hasHeaders === CSVHeaderMode::WITH_HEADERS;
+        return $this->withWriteLock(function () use ($rows): int {
+            if (!is_writable($this->path)) {
+                throw new DataSourceException("File not writable: {$this->path}");
             }
-
-            fseek($handle, 0, SEEK_END);
-
-            // Ensure we start on a fresh line
+            $size = $this->getFileSize();
+            if ($size === false || $size < 0) {
+                throw new DataSourceException("Cannot inspect file: {$this->path}");
+            }
             if ($size > 0) {
-                fseek($handle, -1, SEEK_END);
-                $lastByte = fread($handle, 1);
-
-                if ($lastByte !== "\n") {
-                    fwrite($handle, "\n");
+                $this->loadHeaders();
+            } else {
+                $this->headers = array_map('strval', array_keys($rows[0]));
+            }
+            // Validate the whole batch before writing any bytes.
+            $mapped = array_map(fn(array $row): array => $this->mapRowToHeaders($row), $rows);
+            $handle = fopen($this->path, 'c+');
+            if ($handle === false) {
+                throw new DataSourceException("Unable to open file for writing: {$this->path}");
+            }
+            try {
+                if (fseek($handle, 0, SEEK_END) !== 0) {
+                    throw new DataSourceException('Unable to seek to end of CSV');
                 }
+                if ($size > 0) {
+                    if (fseek($handle, -1, SEEK_END) !== 0) {
+                        throw new DataSourceException('Unable to inspect trailing newline');
+                    }
+                    $last = fread($handle, 1);
+                    if ($last === false) {
+                        throw new DataSourceException('Unable to read trailing byte');
+                    }
+                    if ($last !== "\n" && fwrite($handle, "\n") !== 1) {
+                        throw new DataSourceException('Unable to write trailing newline');
+                    }
+                } elseif ($this->hasHeaders === CSVHeaderMode::WITH_HEADERS) {
+                    $this->writeCsvRow($handle, $this->headers);
+                }
+                foreach ($mapped as $row) {
+                    $this->writeCsvRow($handle, $row);
+                }
+                if (!fflush($handle)) {
+                    throw new DataSourceException('Unable to flush appended CSV rows');
+                }
+                return count($mapped);
+            } catch (\Throwable $error) {
+                if (!ftruncate($handle, $size) || !fflush($handle)) {
+                    throw new DataSourceException('Append failed and restoring the original file length also failed', previous: $error, context: ['path' => $this->path]);
+                }
+                throw $error;
+            } finally {
+                fclose($handle);
             }
+        });
+    }
 
-            if ($writeHeaderLine) {
-                fputcsv($handle, $this->headers, $this->delimiter);
-            }
-
-            $written = 0;
-
-            foreach ($rows as $row) {
-                fputcsv($handle, $this->mapRowToHeaders($row), $this->delimiter);
-                $written++;
-            }
-
-            fflush($handle);
-
-            return $written;
+    /**
+     * The lock lives beside the canonical path and survives file replacement.
+     * Do not delete a lock file while another process might be using the CSV.
+     * @template T
+     * @param callable(): T $operation Complete operation, including reads.
+     * @return T
+     */
+    public function withWriteLock(callable $operation): mixed
+    {
+        if ($this->writeLockDepth > 0) {
+            return $operation();
+        }
+        $lock = fopen($this->path . '.cql.lock', 'c');
+        if ($lock === false) {
+            throw new DataSourceException("Unable to open write lock: {$this->path}", context: ['path' => $this->path]);
+        }
+        if (!flock($lock, LOCK_EX)) {
+            fclose($lock);
+            throw new DataSourceException("Unable to acquire write lock: {$this->path}", context: ['path' => $this->path]);
+        }
+        $this->writeLockDepth++;
+        try {
+            clearstatcache(true, $this->path);
+            return $operation();
         } finally {
-            flock($handle, LOCK_UN);
-            fclose($handle);
+            $this->writeLockDepth--;
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+
+    /**
+     * @param resource $handle CSV output handle.
+     * @param array<string|int|float|bool|null> $row Ordered field values.
+     * @return void
+     */
+    private function writeCsvRow($handle, array $row): void
+    {
+        if (fputcsv($handle, $row, $this->delimiter, '"', "\\") === false) {
+            throw new DataSourceException("Unable to write CSV row: {$this->path}");
         }
     }
 
@@ -401,60 +429,55 @@ class CSVDataSource implements DataSourceInterface, WritableDataSourceInterface
      */
     public function rewriteFrom(iterable $rows): void
     {
-        if (!is_writable($this->path) || !is_writable(dirname($this->path))) {
-            throw new DataSourceException("File not writable: {$this->path}");
-        }
-
-        $tempPath = $this->path . '.' . uniqid('cql', true) . '.tmp';
-        $handle = fopen($tempPath, 'w');
-
-        if ($handle === false) {
-            throw new DataSourceException("Unable to create temporary file: {$tempPath}");
-        }
-
-        try {
-            $headersWritten = false;
-
-            if ($this->hasHeaders === CSVHeaderMode::WITH_HEADERS && $this->headers !== null) {
-                fputcsv($handle, $this->headers, $this->delimiter);
-                $headersWritten = true;
+        $this->withWriteLock(function () use ($rows): void {
+            if (!is_writable($this->path) || !is_writable(dirname($this->path))) {
+                throw new DataSourceException("File not writable: {$this->path}");
             }
-
-            foreach ($rows as $row) {
-                if (!$headersWritten && $this->hasHeaders === CSVHeaderMode::WITH_HEADERS) {
-                    // Headers weren't loaded; derive from the first row
-                    $this->headers = array_map('strval', array_keys($row));
-                    fputcsv($handle, $this->headers, $this->delimiter);
+            $tempPath = tempnam(dirname($this->path), '.cql-');
+            if ($tempPath === false) {
+                throw new DataSourceException('Unable to create temporary CSV');
+            }
+            $handle = null;
+            try {
+                $handle = fopen($tempPath, 'w');
+                if ($handle === false) {
+                    throw new DataSourceException("Unable to open temporary file: {$tempPath}");
+                }
+                $headersWritten = false;
+                if ($this->hasHeaders === CSVHeaderMode::WITH_HEADERS && $this->headers !== null) {
+                    $this->writeCsvRow($handle, $this->headers);
                     $headersWritten = true;
                 }
-
-                fputcsv($handle, $this->mapRowToHeaders($row), $this->delimiter);
-            }
-
-            fflush($handle);
-            fclose($handle);
-            $handle = null;
-
-            $permissions = fileperms($this->path);
-
-            if (!rename($tempPath, $this->path)) {
-                throw new DataSourceException("Unable to replace file: {$this->path}");
-            }
-
-            if ($permissions !== false) {
-                @chmod($this->path, $permissions & 0777);
-            }
-        } catch (\Throwable $e) {
-            if (is_resource($handle)) {
+                foreach ($rows as $row) {
+                    if (!$headersWritten && $this->hasHeaders === CSVHeaderMode::WITH_HEADERS) {
+                        $this->headers = array_map('strval', array_keys($row));
+                        $this->writeCsvRow($handle, $this->headers);
+                        $headersWritten = true;
+                    }
+                    $this->writeCsvRow($handle, $this->mapRowToHeaders($row));
+                }
+                if (!fflush($handle)) {
+                    throw new DataSourceException('Unable to flush replacement CSV');
+                }
                 fclose($handle);
+                $handle = null;
+                $permissions = fileperms($this->path);
+                if ($permissions === false || !chmod($tempPath, $permissions & 0777)) {
+                    throw new DataSourceException('Unable to preserve CSV permissions');
+                }
+                if (!rename($tempPath, $this->path)) {
+                    throw new DataSourceException("Unable to replace file: {$this->path}");
+                }
+                clearstatcache(true, $this->path);
+            } finally {
+                if (is_resource($handle)) {
+                    fclose($handle);
+                }
+                if (file_exists($tempPath)) {
+                    unlink($tempPath);
+                }
             }
-
-            if (file_exists($tempPath)) {
-                @unlink($tempPath);
-            }
-
-            throw $e;
-        }
+        });
     }
 
     /**

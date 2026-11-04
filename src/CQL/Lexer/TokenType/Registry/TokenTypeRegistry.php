@@ -9,7 +9,8 @@ use CQL\Lexer\Token;
 
 class TokenTypeRegistry
 {
-    private static $structuralTokens = [
+    /** @var list<string> */
+    private static array $structuralTokens = [
         'DOT',
     ];
 
@@ -21,6 +22,7 @@ class TokenTypeRegistry
     public static function generatePatterns(): array
     {
         $patterns = [
+            'PARAMETER' => '(?<PARAMETER>:[a-zA-Z_][a-zA-Z0-9_]*|\?)',
             'COMMENT' => '(?<COMMENT>--[^\r\n]*|/\*.*?\*/)',
             'NULL' => '(?<NULL>\bNULL\b)',
         ];

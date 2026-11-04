@@ -1072,3 +1072,128 @@ as `CQL_LEXER_ERROR`, `CQL_PARSER_ERROR`, `CQL_SYNTAX_ERROR`,
 offset when available; and `context`, which can contain `path`, `alias`, and
 `row` for a CSV error. CSV `row` is the zero-based data-row index, excluding the
 header. Existing numeric exception codes and chained exceptions are retained.
+
+
+## Prepared queries
+
+`prepare()` parses and validates a statement without opening its CSV sources.
+Each execution uses fresh source data and a complete new set of bindings. The
+parsed AST is reused; neither query text nor parameters are interpolated.
+
+```php
+$prepared = $cql->prepare(
+    "DEFINE 'users.csv' AS users WITH HEADERS " .
+    'SELECT name FROM users WHERE age >= :minimum'
+);
+$rows = $prepared->query(['minimum' => 18]);
+$older = $prepared->query(['minimum' => 65]);
+```
+
+`execute()` returns the existing Collection; `query()` returns its array; and
+`statement()` accepts only INSERT, UPDATE or DELETE and returns affected rows.
+Named bindings accept keys with or without a leading colon. Positional `?`
+bindings use a zero-based list. Do not mix styles or reuse a named marker in
+one query. Every marker represents one scalar value or null, including inside
+an IN list or date function. Identifiers, file paths and SQL fragments cannot
+be bound. Missing, extra, duplicate or non-scalar bindings raise
+`ParameterException` (`CQL_PARAMETER_ERROR`) before execution. Numeric strings
+remain strings; CSV writes retain the existing string conversion conventions.
+
+## Registered data sources
+
+Register sources on a CQL instance and reference their aliases without a
+`DEFINE` prefix. Registrations do not open files and are isolated between
+instances. Registering the same alias replaces its previous factory;
+`unregisterSource($alias)` removes it. An inline DEFINE overrides the registered
+source for that statement only. Duplicate inline aliases are rejected.
+
+```php
+$cql->registerCsv('users', '/data/users.csv', headers: true);
+$cql->registerCsv('events', '/data/events.tsv', delimiter: "\t");
+$rows = $cql->query('SELECT name FROM users');
+```
+
+`registerSource($alias, $factory)` accepts a callable returning a fresh
+`DataSourceInterface` implementation on each execution. Custom sources return
+unqualified column keys; CQL adds the registered alias while executing the
+query. Implement `SchemaDataSourceInterface` to supply ordered column names,
+including for empty sources, and `WritableDataSourceInterface` to support
+mutations. Read-only sources reject write operations explicitly. CSV
+registration takes a literal filesystem path, with no SQL quoting required.
+
+## Structured results
+
+Use `run($query, $parameters = [])` or `$prepared->run($parameters)` for a
+`QueryResult`. The existing `execute()`, `query()` and `statement()` return
+types remain unchanged.
+
+```php
+$result = $cql->run('SELECT name AS person FROM users WHERE age >= ?', [18]);
+$columns = $result->columns(); // Ordered ResultColumn objects
+foreach ($result->rows() as $row) {
+    echo $row['person'];
+}
+$result->close();
+```
+
+Each column exposes `name`, `sourceAlias` and `sourceColumn`. Computed values
+have no source field. Metadata is available even when no rows match; wildcard
+metadata for an empty custom source requires `SchemaDataSourceInterface`.
+Output names must be unique in this API; use explicit AS aliases to distinguish
+columns. Ambiguous and unknown projected fields are rejected when the schema
+is known.
+
+`fetch()` returns the next associative row or null at the end. `rows()` and
+`fetchAll()` consume the remaining cursor and use consecutive numeric row
+indexes. Result cursors are independent, forward-only and cannot be rewound.
+`close()` releases the remaining data and is safe to call repeatedly. A SELECT
+has `isQuery() === true` and `affectedRows() === null`. Mutations have no rows
+or columns and expose the affected count, including zero. Grouped queries and
+mixed date-function/column projections retain their declared aliases.
+
+## Cursor streaming and memory
+
+With streaming enabled, `run()` reads CSV headers to describe the result but
+reads data rows only when fetched. Simple SELECT, WHERE, aliases, wildcards
+and date-function projection run one row at a time. `first()` stops at the
+first match and closes the cursor. Fetching does not read the following row
+in advance, so later CSV errors are reported when that row is requested.
+
+Use `CQL::streaming()` to force this behaviour, or use automatic mode with its
+configured file-size threshold. `CQL::normal()` still loads CSV input into
+memory. `execute()`, `query()` and `fetchAll()` deliberately materialize their
+returned rows; consume `rows()` or `fetch()` for bounded-memory output.
+Joins, GROUP BY and aggregates currently use the buffered execution path.
+They are not bounded-memory operations.
+
+Custom sources can implement `StreamingDataSourceInterface`: `load()` supplies
+metadata without consuming the rows, and `streamRows()` yields unqualified
+rows. Source generators should release their resources in a finally block.
+Closing or exhausting a result releases its active generator. A partially
+consumed result should be closed explicitly when retained by the application.
+
+## Coordinated CSV writes
+
+CQL mutations acquire an exclusive lock before loading the rows or headers,
+and keep it until the mutation finishes. INSERT, UPDATE and DELETE share a
+stable `<canonical-csv-path>.cql.lock` sidecar, so replacing the CSV inode does
+not replace the lock. Relative paths and symlinks resolve to the canonical
+path. Keep lock files in place while the data source is in use; the parent
+directory must permit their creation. Hard-link aliases and external writers
+that ignore this protocol are not coordinated.
+
+UPDATE and DELETE write a temporary file in the CSV directory, check writes,
+preserve permissions and rename it into place. Exceptions discard the
+unfinished temporary file and release the lock. INSERT validates the entire
+batch before appending and restores the original file length on a caught
+write failure. Readers do not acquire transaction snapshots, and a process
+crash during append is not covered by exception rollback.
+
+`CSVDataSource::withWriteLock($operation)` can wrap direct source operations;
+use that same source instance inside the callback. A direct `rewriteFrom()`
+only protects the replacement itself: include any reads used to calculate
+its rows in the callback. Custom writable sources may implement
+`LockingWritableDataSourceInterface` to coordinate the whole CQL mutation
+using their own locking mechanism. Sources without that interface retain
+their existing concurrency behaviour. This is per-file writer coordination,
+with no multi-statement or multi-file transactions.

@@ -87,25 +87,19 @@ class Collection implements IteratorAggregate
     }
 
     /**
-     * Get the last item in the Collection
+     * Map each item to an iterable and flatten its values in iteration order.
      *
      * @template TOut
      * @param callable(TValue, TKey): iterable<array-key, TOut> $callback
-     * @return Collection<array-key, TOut>
+     * @return Collection<int, TOut>
      */
     public function flatMap(callable $callback): self
     {
         $results = [];
 
         foreach ($this->items as $key => $value) {
-            $mapped = $callback($value, $key);
-
-            if (is_array($mapped)) {
-                foreach ($mapped as $subValue) {
-                    $results[] = $subValue;
-                }
-            } elseif ($mapped !== null) {
-                $results[] = $mapped;
+            foreach ($callback($value, $key) as $subValue) {
+                $results[] = $subValue;
             }
         }
 
