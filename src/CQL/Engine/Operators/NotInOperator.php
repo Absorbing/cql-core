@@ -21,7 +21,7 @@ class NotInOperator extends BaseComparisonOperator implements ComparisonOperator
      * operand's values.
      *
      * @param mixed $left
-     * @param mixed $right A list of candidate values
+     * @param mixed $right A list of candidate values.
      * @return bool
      */
     public static function evaluate(mixed $left, mixed $right): bool

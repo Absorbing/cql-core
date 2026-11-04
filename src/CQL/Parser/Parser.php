@@ -7,6 +7,9 @@ use CQL\Engine\Operators\Contracts\ExpressionOperatorInterface;
 use CQL\Engine\Operators\Registry\OperatorRegistry;
 use CQL\Lexer\Token;
 use CQL\Parser\Nodes\AssignmentNode;
+use CQL\Parser\Nodes\LiteralNode;
+use CQL\Parser\Nodes\ColumnReferenceNode;
+use CQL\Exceptions\CQLException;
 use CQL\Parser\Nodes\ConditionNode;
 use CQL\Parser\Nodes\Contracts\StatementNodeInterface;
 use CQL\Parser\Nodes\DefineNode;
@@ -51,6 +54,18 @@ class Parser
      * @throws SyntaxException
      */
     public function parse(): StatementNodeInterface
+    {
+        try {
+            return $this->parseStatement();
+        } catch (CQLException $error) {
+            $last = $this->tokens[count($this->tokens) - 1] ?? null;
+            $error->position ??= $this->peek()->position ?? ($last ? $last->position + strlen($last->value) : 0);
+            throw $error;
+        }
+    }
+
+    /** @return StatementNodeInterface */
+    protected function parseStatement(): StatementNodeInterface
     {
         if (!$this->match('KEYWORD', 'DEFINE')) {
             $type = $this->tokens[$this->position]->type ?? '';
@@ -335,7 +350,7 @@ class Parser
         $hasHeaders = $this->parseHeaders();
         $columns = $this->parseColumns();
 
-        $alias ??= preg_replace('/[^a-zA-Z0-9]/', '', pathinfo($path, PATHINFO_FILENAME));
+        $alias ??= preg_replace('/[^a-zA-Z0-9]/', '', pathinfo(LiteralNode::decode($path), PATHINFO_FILENAME));
         /** @var string $alias */
 
         return new DefineNode(
@@ -374,7 +389,7 @@ class Parser
         $aliasValue = $aliasToken->value;
 
         if ($aliasToken->type === 'STRING') {
-            $aliasValue = trim($aliasToken->value, "'");
+            $aliasValue = LiteralNode::decode($aliasToken->value);
         }
 
         if (!preg_match('/^[a-zA-Z0-9_]+$/', $aliasValue)) {
@@ -432,7 +447,7 @@ class Parser
                 throw new SyntaxException("Expected column name, got {$token->type} at position {$this->position}");
             }
 
-            $columns[] = trim($token->value, "'");
+            $columns[] = $token->type === 'STRING' ? LiteralNode::decode($token->value) : $token->value;
             $this->advance();
 
             if (!$this->match('COMMA')) {
@@ -478,7 +493,7 @@ class Parser
                     $this->advance(); // DOT
                     $this->advance(); // *
                     $columns[] = new WildcardNode($prefix);
-                } elseif (TokenTypeRegistry::isWildcard($token)) {
+                } elseif ($token !== null && TokenTypeRegistry::isWildcard($token)) {
                     $this->advance(); // *
                     $columns[] = new WildcardNode();
                 } else {
@@ -535,6 +550,9 @@ class Parser
             }
 
             if (!$this->match('KEYWORD', 'JOIN')) {
+                if ($type !== null) {
+                    $this->expect('KEYWORD', 'JOIN');
+                }
                 break;
             }
 
@@ -784,32 +802,37 @@ class Parser
             $this->expect('RPAREN');
             return $expression;
         }
-
-        // Check for date functions in expressions
-        $token = $this->peek();
-        if ($this->isDateFunction($token)) {
+        if ($this->match('MATH_OPERATOR', '-') || $this->match('MATH_OPERATOR', '+')) {
+            $sign = $this->advance()->value;
+            $operand = $this->parsePrimary();
+            return $sign === '+' ? $operand : new ExpressionNode(new LiteralNode(0), '-', $operand);
+        }
+        if ($this->isDateFunction($this->peek())) {
             return $this->parseFunction();
         }
-
         if ($this->match('IDENTIFIER')) {
-            $first = $this->advance();
-
+            $name = $this->advance()->value;
             if ($this->match('DOT')) {
                 $this->advance();
-                $second = $this->expect('IDENTIFIER');
-                return "{$first->value}.{$second->value}";
+                $name .= '.' . $this->expect('IDENTIFIER')->value;
             }
-
-            return $first->value;
+            return new ColumnReferenceNode($name);
         }
-
-        if ($this->match('STRING') || $this->match('NUMBER') || $this->match('BOOLEAN')) {
-            return $this->advance()->value;
+        if ($this->match('STRING')) {
+            return new LiteralNode(LiteralNode::decode($this->advance()->value));
         }
-
-        throw new ParserException(
-            "Unexpected token: {$this->tokens[$this->position]->type} at position {$this->position}"
-        );
+        if ($this->match('NUMBER')) {
+            return new LiteralNode($this->advance()->value + 0);
+        }
+        if ($this->match('BOOLEAN')) {
+            return new LiteralNode(strtoupper($this->advance()->value) === 'TRUE');
+        }
+        if ($this->match('NULL')) {
+            $this->advance();
+            return new LiteralNode(null);
+        }
+        $type = $this->peek()->type ?? 'EOF';
+        throw new ParserException("Unexpected token: {$type} at position {$this->position}");
     }
 
 

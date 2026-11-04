@@ -10,8 +10,8 @@ readonly class DeleteNode implements StatementNodeInterface
      * Create a new DeleteNode instance.
      *
      * @param array<DefineNode> $defines
-     * @param string $table Target data source alias
-     * @param WhereNode|null $where Null deletes ALL rows
+     * @param string $table Target data source alias.
+     * @param WhereNode|null $where Null deletes ALL rows.
      */
     public function __construct(
         public readonly array $defines,
@@ -22,6 +22,8 @@ readonly class DeleteNode implements StatementNodeInterface
 
     /**
      * @inheritDoc
+     *
+     * @return array<DefineNode>
      */
     public function getDefines(): array
     {

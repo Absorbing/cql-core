@@ -2,55 +2,48 @@
 
 namespace CQL\Lexer;
 
+use CQL\Exceptions\LexerException;
 use CQL\Lexer\TokenType\Registry\TokenTypeRegistry;
 
 class Tokenizer
 {
     /**
-     * @var array<Token>
+     * @param string $input Query text.
      */
-    protected array $tokens = [];
-
-    /**
-     * Create a new Tokenizer instance.
-     *
-     * @param string $input
-     * @return void
-     */
-    public function __construct(
-        protected string $input
-    ) {
+    public function __construct(protected string $input)
+    {
     }
 
     /**
-     * Tokenize the input string into an array of tokens.
-     *
-     * @return array<Token> An array of Token objects.
+     * Consume the entire input, reporting the first invalid byte.
+     * @return array<Token>
      */
     public function tokenize(): array
     {
         $patterns = TokenTypeRegistry::generatePatterns();
-        $regex = '~' . implode('|', $patterns) . '~i';
+        $regex = '~\G(?:' . implode('|', $patterns) . ')~is';
+        $tokens = [];
+        $offset = 0;
+        $length = strlen($this->input);
 
-        preg_match_all($regex, $this->input, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
-
-        foreach ($matches as $match) {
-            foreach ($match as $name => $group) {
+        while ($offset < $length) {
+            if (substr($this->input, $offset, 2) === '/*' && strpos($this->input, '*/', $offset + 2) === false) {
+                throw new LexerException('Unterminated comment', position: $offset);
+            }
+            $matched = preg_match($regex, $this->input, $matches, PREG_OFFSET_CAPTURE, $offset);
+            if ($matched !== 1 || $matches[0][0] === '') {
+                throw new LexerException("Unexpected character at byte {$offset}", position: $offset);
+            }
+            foreach ($matches as $name => $group) {
                 if (is_string($name) && $group[1] !== -1) {
-                    if ($name === 'WHITESPACE') {
-                        continue 2; // Skip whitespace
+                    if ($name !== 'WHITESPACE' && $name !== 'COMMENT') {
+                        $tokens[] = new Token($name, $group[0], $offset);
                     }
-
-                    $value = $group[0];
-                    $pos = $group[1];
-
-                    $this->tokens[] = new Token($name, $value, $pos);
-
                     break;
                 }
             }
+            $offset += strlen($matches[0][0]);
         }
-
-        return $this->tokens;
+        return $tokens;
     }
 }

@@ -34,8 +34,8 @@ class Interpreter
      * Create a new Interpreter instance.
      *
      * @param QueryNode $query
-     * @param bool|null $streaming Enable streaming mode (true/false), or null for automatic based on file size
-     * @param int $autoStreamingThreshold File size threshold in bytes for automatic streaming (default: 50MB)
+     * @param bool|null $streaming Enable streaming mode (true/false), or null for automatic based on file size.
+     * @param int $autoStreamingThreshold File size threshold in bytes for automatic streaming (default: 50MB).
      */
     public function __construct(
         protected QueryNode $query,
@@ -60,7 +60,7 @@ class Interpreter
         // Determine streaming mode
         if ($streaming === null) {
             // Automatic mode: check file size
-            $cleanPath = str_replace(['\'', '"'], '', $define->path);
+            $cleanPath = \CQL\Parser\Nodes\LiteralNode::decode($define->path);
             $fileSize = file_exists($cleanPath) ? filesize($cleanPath) : 0;
             $this->streaming = $fileSize !== false && $fileSize > $this->autoStreamingThreshold;
         } else {

@@ -10,7 +10,7 @@ readonly class GroupByNode
     /**
      * Create a new GroupByNode instance.
      *
-     * @param array<string|FunctionNode> $columns Columns or functions to group by
+     * @param array<string|FunctionNode> $columns Columns or functions to group by.
      */
     public function __construct(
         public array $columns

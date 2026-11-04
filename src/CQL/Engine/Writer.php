@@ -40,9 +40,9 @@ class Writer
     /**
      * Create a new Writer instance.
      *
-     * @param StatementNodeInterface $statement An InsertNode, UpdateNode, or DeleteNode
-     * @param bool|null $streamingMode Enable streaming mode (true/false), or null for automatic based on file size
-     * @param int $autoStreamingThreshold File size threshold in bytes for automatic streaming (default: 50MB)
+     * @param StatementNodeInterface $statement An InsertNode, UpdateNode, or DeleteNode.
+     * @param bool|null $streamingMode Enable streaming mode (true/false), or null for automatic based on file size.
+     * @param int $autoStreamingThreshold File size threshold in bytes for automatic streaming (default: 50MB).
      */
     public function __construct(
         protected StatementNodeInterface $statement,
@@ -195,7 +195,7 @@ class Writer
      * Resolve the target alias to a data source.
      *
      * @param string $alias
-     * @param bool|null $streaming Force a streaming mode, or null to decide from settings/file size
+     * @param bool|null $streaming Force a streaming mode, or null to decide from settings/file size.
      * @return CSVDataSource
      * @throws InterpreterException
      */
@@ -209,7 +209,7 @@ class Writer
 
         if ($streaming === null) {
             if ($this->streamingMode === null) {
-                $cleanPath = str_replace(['\'', '"'], '', $define->path);
+                $cleanPath = \CQL\Parser\Nodes\LiteralNode::decode($define->path);
                 $fileSize = file_exists($cleanPath) ? filesize($cleanPath) : 0;
                 $streaming = $fileSize !== false && $fileSize > $this->autoStreamingThreshold;
             } else {

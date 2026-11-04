@@ -37,7 +37,7 @@ class CSVDataSource implements DataSourceInterface, WritableDataSourceInterface
      * @param CSVHeaderMode $hasHeaders
      * @param string $delimiter
      * @param string $alias
-     * @param bool $streaming Enable streaming mode for large files
+     * @param bool $streaming Enable streaming mode for large files.
      * @throws DataSourceException
      */
     public function __construct(
@@ -47,14 +47,15 @@ class CSVDataSource implements DataSourceInterface, WritableDataSourceInterface
         protected string $alias = '',
         bool $streaming = false
     ) {
-        $this->path = str_replace(['\'', '"'], '', $this->path);
+        $this->path = ((str_starts_with($this->path, "'") || str_starts_with($this->path, '"'))
+            ? \CQL\Parser\Nodes\LiteralNode::decode($this->path) : $this->path);
 
         if (!file_exists($this->path)) {
-            throw new DataSourceException("File not found: {$this->path}");
+            throw new DataSourceException("File not found: {$this->path}", context: ['path' => $this->path, 'alias' => $this->alias]);
         }
 
         if (!is_readable($this->path)) {
-            throw new DataSourceException("File not readable: {$this->path}");
+            throw new DataSourceException("File not readable: {$this->path}", context: ['path' => $this->path, 'alias' => $this->alias]);
         }
 
         $this->streaming = $streaming;
@@ -143,7 +144,7 @@ class CSVDataSource implements DataSourceInterface, WritableDataSourceInterface
             }
 
             if (count($headers) !== count($row)) {
-                throw new DataSourceException("Row column count mismatch at row {$index}");
+                throw new DataSourceException("Row column count mismatch at row {$index}", context: ['path' => $this->path, 'alias' => $this->alias, 'row' => $index]);
             }
 
             $row = array_map(fn($value) => (string)($value ?? ''), $row);
@@ -210,7 +211,7 @@ class CSVDataSource implements DataSourceInterface, WritableDataSourceInterface
 
             if (count($this->headers) !== count($row)) {
                 fclose($handle);
-                throw new DataSourceException("Row column count mismatch at row {$index}");
+                throw new DataSourceException("Row column count mismatch at row {$index}", context: ['path' => $this->path, 'alias' => $this->alias, 'row' => $index]);
             }
 
             $row = array_map(fn($value) => (string)($value ?? ''), $row);
@@ -394,7 +395,7 @@ class CSVDataSource implements DataSourceInterface, WritableDataSourceInterface
      * then renamed over the original so readers never see a half-written
      * file and a failure part-way through leaves the original untouched.
      *
-     * @param iterable<array<string, mixed>> $rows Un-namespaced rows
+     * @param iterable<array<string, mixed>> $rows Un-namespaced rows.
      * @return void
      * @throws DataSourceException
      */

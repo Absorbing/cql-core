@@ -44,9 +44,9 @@ class ParserTest extends TestCase
         $this->assertInstanceOf(WhereNode::class, $ast->where);
         $condition = $ast->where->condition;
         $this->assertInstanceOf(ConditionNode::class, $condition);
-        $this->assertSame('age', $condition->left);
+        $this->assertSame('age', $condition->left->name);
         $this->assertSame('>', $condition->operator);
-        $this->assertSame('18', $condition->right);
+        $this->assertSame(18, $condition->right->value);
     }
 
 

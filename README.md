@@ -1050,3 +1050,25 @@ Developed by the Absorbing team.
 
 - **Issues**: [GitHub Issues](https://github.com/Absorbing/cql-core/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/Absorbing/cql-core/discussions)
+
+
+## Parsing and diagnostic errors
+
+The tokenizer consumes the entire query and rejects unknown characters and
+unterminated strings/comments. SQL strings accept single or double quotes and
+escape a quote by doubling it: `'O''Brien'`. Backslashes remain literal. `--`
+line comments and `/* block comments */` are supported outside strings.
+
+Expression operands in the public AST now use `LiteralNode` and
+`ColumnReferenceNode`. Code inspecting the AST should read `value` or `name`
+respectively instead of assuming every operand is a string. Literals preserve
+integer, float, boolean and null types. CSV fields still use the existing string
+storage conventions, including empty strings for null writes.
+
+All existing exception classes extend `CQLException` (and remain
+`RuntimeException` subclasses). They expose `errorCode`, a stable string such
+as `CQL_LEXER_ERROR`, `CQL_PARSER_ERROR`, `CQL_SYNTAX_ERROR`,
+`CQL_EXECUTION_ERROR`, or `CQL_SOURCE_ERROR`; `position`, a zero-based query byte
+offset when available; and `context`, which can contain `path`, `alias`, and
+`row` for a CSV error. CSV `row` is the zero-based data-row index, excluding the
+header. Existing numeric exception codes and chained exceptions are retained.
